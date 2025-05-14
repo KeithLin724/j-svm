@@ -1,9 +1,10 @@
 import jax
 import jax.numpy as jnp
-import numpy as np
 import cvxpy as cp
 from jaxtyping import Array, Float, Int
 from typing import Callable
+from dataclasses import dataclass
+import time
 
 
 def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
@@ -60,6 +61,13 @@ def linear() -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
     return run
 
 
+@dataclass(slots=True)
+class KernelResult:
+    kernel_function: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+    fast_forward_jit: Callable
+    build_k_matrix: Callable[[jnp.ndarray], jnp.ndarray]
+
+
 class Kernel:
     kernel_dict = {
         "linear": linear,
@@ -80,6 +88,81 @@ class Kernel:
 
         return func(**config)
 
+    @staticmethod
+    def build_fast_jit_function(name: str, config: dict, with_time: bool = False):
+        kernel = Kernel.get_kernel(name, config)
+
+        @jax.jit
+        def build_k_matrix(x: Float[Array, "N D"]) -> jnp.ndarray:
+
+            # 先對 x 的每一列做 vmap，然後再對每一列的每一個元素做 vmap
+            # K[i, j] = kernel(x[i], x[j])
+            return jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(xi, xj))(x))(x)
+
+        @jax.jit
+        def cal_one_item(
+            ay: jnp.ndarray, x_kernel: jnp.ndarray, x_item: jnp.ndarray, b: float
+        ):
+            return jnp.sum(ay * kernel(x_kernel.T, x_item.reshape(-1, 1))) + b
+
+        @jax.jit
+        def fast_forward_jit(
+            a_y_x: jnp.ndarray, x: jnp.ndarray, b: float
+        ) -> jnp.ndarray:
+
+            a, y, x_kernel = (
+                a_y_x[:, 0].reshape(-1, 1),
+                a_y_x[:, 1].reshape(-1, 1),
+                a_y_x[:, 2:],
+            )
+
+            process_x = jax.vmap(
+                lambda x_item: cal_one_item(a * y, x_kernel, x_item, b)
+            )
+
+            result = process_x(x)
+            res = jnp.hstack(result)
+
+            return res
+
+        ## warm up
+        if with_time:
+
+            start = time.time()
+            _ = build_k_matrix(jnp.zeros((1, 1))).block_until_ready()
+            end = time.time()
+            print(f"build_k_matrix time: {end - start:.4f} s")
+
+            start = time.time()
+            _ = cal_one_item(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+            ).block_until_ready()
+            end = time.time()
+            print(f"cal_one_item time: {end - start:.4f} s")
+
+            start = time.time()
+            _ = fast_forward_jit(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+            ).block_until_ready()
+            end = time.time()
+            print(f"fast_forward_jit time: {end - start:.4f} s")
+        else:
+            _ = build_k_matrix(jnp.zeros((1, 1))).block_until_ready()
+
+            _ = cal_one_item(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+            ).block_until_ready()
+
+            _ = fast_forward_jit(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+            ).block_until_ready()
+
+        return KernelResult(
+            kernel_function=kernel,
+            fast_forward_jit=fast_forward_jit,
+            build_k_matrix=build_k_matrix,
+        )
+
 
 class SupportVectorMachine:
     def __init__(
@@ -94,17 +177,22 @@ class SupportVectorMachine:
         # like ("ay": ... , "x": ...,)
         self._a_y_x: jnp.ndarray = None
         self._b: float = None
-        self._kernel = Kernel.get_kernel(kernel_name, kernel_arg)
+        # self._kernel = Kernel.get_kernel(kernel_name, kernel_arg)
         self._kernel_info = {"name": kernel_name, "arg": kernel_arg}
+
+        self.__kernel_result = Kernel.build_fast_jit_function(
+            kernel_name, kernel_arg, with_time=True
+        )
+
+        self._build_k_matrix = self.__kernel_result.build_k_matrix
+        self._kernel = self.__kernel_result.kernel_function
+        self._fast_forward_jit = self.__kernel_result.fast_forward_jit
 
         return
 
     @staticmethod
     def warm_up():
         ## jit warm up
-        _ = SupportVectorMachine.__cal_one_item_jit(
-            jnp.zeros((1,)), jnp.zeros((1,)), 0
-        ).block_until_ready()
 
         key = jax.random.PRNGKey(0)
         alpha = jax.random.uniform(key, (5,))
@@ -124,21 +212,10 @@ class SupportVectorMachine:
     def bias(self) -> jnp.ndarray:
         return self._b
 
-    def _build_k_matrix(self, x: jnp.ndarray) -> jnp.ndarray:
-        # x shape: [N, D]
-        kernel = self._kernel  # 取出 kernel function
-
-        # 先對 x 的每一列做 vmap，然後再對每一列的每一個元素做 vmap
-        # K[i, j] = kernel(x[i], x[j])
-        k_matrix = jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(xi, xj))(x))(x)
-        return k_matrix
-
     def _find_alpha(
         self, K: jnp.ndarray, x: jnp.ndarray, y: jnp.ndarray
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
         size = x.shape[0]
-
-        # K, x, y = np.asarray(K), np.asarray(x), np.asarray(y)
 
         alpha = cp.Variable(size)
 
@@ -189,32 +266,9 @@ class SupportVectorMachine:
 
         return
 
-    @staticmethod
-    @jax.jit
-    def __cal_one_item_jit(ay: jnp.ndarray, pre_x_kernel: jnp.ndarray, b: float):
-        return jnp.sum(ay * pre_x_kernel) + b
-
-    def cal_one_item(
-        self, ay: jnp.ndarray, x_kernel: jnp.ndarray, x_item: jnp.ndarray
-    ) -> jnp.ndarray:
-        # x [1, feature]
-        # x_kernel [a, feature]
-        pre_x_kernel = self._kernel(x_kernel.T, x_item.reshape(-1, 1))
-
-        return SupportVectorMachine.__cal_one_item_jit(ay, pre_x_kernel, self._b)
-
     def __call__(self, x: jnp.ndarray, with_sign: bool = False) -> jnp.ndarray:
         # x [batch, feature]
-        a, y, x_kernel = (
-            self._a_y_x[:, 0].reshape(-1, 1),
-            self._a_y_x[:, 1].reshape(-1, 1),
-            self._a_y_x[:, 2:],
-        )
-
-        result = jax.vmap(
-            lambda x_item: self.cal_one_item(a * y, x_kernel=x_kernel, x_item=x_item)
-        )(x)
-        res = jnp.hstack(result)
+        res = self._fast_forward_jit(self._a_y_x, x, self._b)
 
         if with_sign:
             res = jnp.sign(res)
