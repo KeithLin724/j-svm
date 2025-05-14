@@ -1,16 +1,16 @@
-import cvxpy as cp
 import jax
 import jax.numpy as jnp
+import numpy as np
+import cvxpy as cp
 from jaxtyping import Array, Float, Int
 from typing import Callable
-import numpy as np
 
 # from cvxpylayers.torch import CvxpyLayer
 
 
 def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
-    @jax.jit
+    # @jax.jit
     def rbf_jit(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
         # 计算欧氏距离的平方
         distance_squared = jnp.sum((x_1 - x_2) ** 2, axis=0)
@@ -36,7 +36,7 @@ def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
 def poly(p: int) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
-    @jax.jit
+    # @jax.jit
     def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
         # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
 
@@ -47,7 +47,7 @@ def poly(p: int) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
 def linear() -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
-    @jax.jit
+    # @jax.jit
     def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
         # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
 
@@ -132,7 +132,7 @@ class SupportVectorMachine:
         return alpha, support_vectors
 
     @staticmethod
-    @jax.jit
+    # @jax.jit
     def _find_bias(
         alpha: jnp.ndarray,
         support_vectors: jnp.ndarray,
@@ -171,7 +171,7 @@ class SupportVectorMachine:
         # x [1, feature]
         # x_kernel [a, feature]
 
-        @jax.jit
+        # @jax.jit
         def cal_one_item_jit(ay: jnp.ndarray, pre_x_kernel: jnp.ndarray, b: float):
             return jnp.sum(ay * pre_x_kernel) + b
 
