@@ -2,6 +2,14 @@
 
 ---
 
+## TODO
+
+- [x] Complete Simple SVM
+- [ ] Complete Simple Multi SVM
+- [ ] Complete J-SVM
+- [ ] Complete J-MultiSVM
+- [ ] Add parallel feature
+
 ## Build Env
 
 ```sh
