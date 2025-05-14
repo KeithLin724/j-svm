@@ -175,7 +175,7 @@ class MultiSupportVectorMachine:
 
         return np.mean(res == y), res
 
-    def build_dataset(self, df_in: pd.DataFrame) -> dict:
+    def build_dataset(self, df_in: pd.DataFrame, training_size: int) -> dict:
         dataset = {
             "before": {"train": dict(), "test": []},
             "after": {"train": dict(), "test": []},
@@ -183,7 +183,9 @@ class MultiSupportVectorMachine:
 
         # build dataset
         for pair in self._models.keys():
-            part_of_dataset = self._models[pair].build_train_test_dataset(df_in)
+            part_of_dataset = self._models[pair].build_train_test_dataset(
+                df_in, train_size=training_size
+            )
 
             for state in MultiSupportVectorMachine.STATES:
                 dataset[state]["train"][pair] = part_of_dataset[state]["train"]
