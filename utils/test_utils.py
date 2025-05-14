@@ -11,6 +11,7 @@ import numpy as np
 from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
+import time
 
 
 @dataclass
@@ -19,6 +20,8 @@ class TestResult:
     acc: float
     bias_: str
     alpha: np.ndarray
+    training_time: float
+    forward_time: float
 
     bias: float = field(repr=False)
     x_test: np.ndarray = field(repr=False)
@@ -26,14 +29,23 @@ class TestResult:
     y_hat: np.ndarray = field(repr=False)
 
     @classmethod
-    def build(cls, model: SVM | j_SVM, x: np.ndarray, y: np.ndarray):
+    def build(
+        cls, model: SVM | j_SVM, x: np.ndarray, y: np.ndarray, training_time: float
+    ):
         model = model
         acc, y_hat = model.acc(x=x, y=y)
         alpha = model.alpha.reshape(-1)
         bias = model.bias
         bias_ = f"{model.bias:.4f}"
 
-        return cls(model, acc, bias_, alpha, bias, x, y, y_hat)
+        start = time.time()
+        model(x, with_sign=True)
+        end = time.time()
+        forward_time = end - start
+
+        return cls(
+            model, acc, bias_, alpha, training_time, forward_time, bias, x, y, y_hat
+        )
 
     def to_data_dict(self, image_save_folder: Path = None) -> dict:
         data = {
@@ -123,9 +135,14 @@ def test_run(
     for kernel_arg_item in kernel_arg_list:
         for c in C_list:
             model = model_type(C=c, kernel_name=kernel_name, kernel_arg=kernel_arg_item)
+            start = time.time()
             model.train(x=train_x, y=train_y)
+            end = time.time()
+            training_time = end - start
 
-            result = TestResult.build(model, x=test_x, y=test_y)
+            result = TestResult.build(
+                model, x=test_x, y=test_y, training_time=training_time
+            )
 
             model_list.append(result)
 

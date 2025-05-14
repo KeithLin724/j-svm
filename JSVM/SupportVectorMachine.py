@@ -1,44 +1,71 @@
+import jax
+import jax.numpy as jnp
 import cvxpy as cp
-import numpy as np
+from jaxtyping import Array, Float, Int
 from typing import Callable
+from dataclasses import dataclass
+import time
 
 
-def rbf(sigma: float) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
-    def run(x_1: np.ndarray, x_2: np.ndarray) -> np.ndarray:
-        # 检查维度是否匹配
-        assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
+def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
+    @jax.jit
+    def rbf_jit(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
         # 计算欧氏距离的平方
-        distance_squared = np.sum((x_1 - x_2) ** 2, axis=0)
+        distance_squared = jnp.sum((x_1 - x_2) ** 2, axis=0)
 
         # 计算 RBF 核函数值
-        kernel_value = np.exp(-distance_squared / (2 * sigma**2))
+        kernel_value = jnp.exp(-distance_squared / (2 * sigma**2))
+
+        return kernel_value
+
+    def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
+        # 检查维度是否匹配
+        # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
+
+        kernel_value = rbf_jit(x_1, x_2)
 
         if x_2.ndim != 1 and x_2.shape[1] == 1:
             kernel_value = kernel_value.reshape(-1, 1)
 
         return kernel_value
 
+    _ = rbf_jit(jnp.zeros((1,)), jnp.zeros((1,))).block_until_ready()  # warm up
+
     return run
 
 
-def poly(p: int) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
-    def run(x_1: np.ndarray, x_2: np.ndarray) -> np.ndarray:
-        assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
+def poly(p: int) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
+
+    @jax.jit
+    def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
+        # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
 
         return (x_1.T @ x_2) ** p
 
+    _ = run(jnp.zeros((1,)), jnp.zeros((1,))).block_until_ready()  # warm up
+
     return run
 
 
-def linear() -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+def linear() -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
-    def run(x_1: np.ndarray, x_2: np.ndarray) -> np.ndarray:
-        assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
+    @jax.jit
+    def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
+        # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
 
         return x_1.T @ x_2
 
+    _ = run(jnp.zeros((1,)), jnp.zeros((1,))).block_until_ready()  # warm up
+
     return run
+
+
+@dataclass(slots=True)
+class KernelResult:
+    kernel_function: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+    fast_forward_jit: Callable
+    build_k_matrix: Callable[[jnp.ndarray], jnp.ndarray]
 
 
 class Kernel:
@@ -51,7 +78,7 @@ class Kernel:
     @staticmethod
     def get_kernel(
         name: str, config: dict
-    ) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    ) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
         if name not in Kernel.kernel_dict:
             raise NotImplementedError(
                 f"{name} kernel not implemented. Available kernels: {list(Kernel.kernel_dict.keys())}"
@@ -60,6 +87,81 @@ class Kernel:
         func = Kernel.kernel_dict[name]
 
         return func(**config)
+
+    @staticmethod
+    def build_fast_jit_function(name: str, config: dict, with_time: bool = False):
+        kernel = Kernel.get_kernel(name, config)
+
+        @jax.jit
+        def build_k_matrix(x: Float[Array, "N D"]) -> jnp.ndarray:
+
+            # 先對 x 的每一列做 vmap，然後再對每一列的每一個元素做 vmap
+            # K[i, j] = kernel(x[i], x[j])
+            return jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(xi, xj))(x))(x)
+
+        @jax.jit
+        def cal_one_item(
+            ay: jnp.ndarray, x_kernel: jnp.ndarray, x_item: jnp.ndarray, b: float
+        ):
+            return jnp.sum(ay * kernel(x_kernel.T, x_item.reshape(-1, 1))) + b
+
+        @jax.jit
+        def fast_forward_jit(
+            a_y_x: jnp.ndarray, x: jnp.ndarray, b: float
+        ) -> jnp.ndarray:
+
+            a, y, x_kernel = (
+                a_y_x[:, 0].reshape(-1, 1),
+                a_y_x[:, 1].reshape(-1, 1),
+                a_y_x[:, 2:],
+            )
+
+            process_x = jax.vmap(
+                lambda x_item: cal_one_item(a * y, x_kernel, x_item, b)
+            )
+
+            result = process_x(x)
+            res = jnp.hstack(result)
+
+            return res
+
+        ## warm up
+        if with_time:
+
+            start = time.time()
+            _ = build_k_matrix(jnp.zeros((1, 1))).block_until_ready()
+            end = time.time()
+            print(f"build_k_matrix time: {end - start:.4f} s")
+
+            start = time.time()
+            _ = cal_one_item(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+            ).block_until_ready()
+            end = time.time()
+            print(f"cal_one_item time: {end - start:.4f} s")
+
+            start = time.time()
+            _ = fast_forward_jit(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+            ).block_until_ready()
+            end = time.time()
+            print(f"fast_forward_jit time: {end - start:.4f} s")
+        else:
+            _ = build_k_matrix(jnp.zeros((1, 1))).block_until_ready()
+
+            _ = cal_one_item(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+            ).block_until_ready()
+
+            _ = fast_forward_jit(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+            ).block_until_ready()
+
+        return KernelResult(
+            kernel_function=kernel,
+            fast_forward_jit=fast_forward_jit,
+            build_k_matrix=build_k_matrix,
+        )
 
 
 class SupportVectorMachine:
@@ -73,51 +175,70 @@ class SupportVectorMachine:
         self._c = C
         self._threshold = threshold
         # like ("ay": ... , "x": ...,)
-        self._a_y_x: np.ndarray = None
+        self._a_y_x: jnp.ndarray = None
         self._b: float = None
-        self._kernel = Kernel.get_kernel(kernel_name, kernel_arg)
+        # self._kernel = Kernel.get_kernel(kernel_name, kernel_arg)
         self._kernel_info = {"name": kernel_name, "arg": kernel_arg}
+
+        self.__kernel_result = Kernel.build_fast_jit_function(
+            kernel_name, kernel_arg, with_time=True
+        )
+
+        self._build_k_matrix = self.__kernel_result.build_k_matrix
+        self._kernel = self.__kernel_result.kernel_function
+        self._fast_forward_jit = self.__kernel_result.fast_forward_jit
+
         return
 
+    @staticmethod
+    def warm_up():
+        ## jit warm up
+
+        key = jax.random.PRNGKey(0)
+        alpha = jax.random.uniform(key, (5,))
+        support_vectors = jnp.array([0, 2, 4])
+        y = jax.random.choice(key, jnp.array([-1.0, 1.0]), (5,))
+        K = jax.random.normal(key, (5, 5))
+
+        _ = SupportVectorMachine.__find_bias(
+            alpha, support_vectors, y, K
+        ).block_until_ready()
+
     @property
-    def alpha(self) -> np.ndarray:
+    def alpha(self) -> jnp.ndarray:
         return self._a_y_x[:, 0].reshape(-1, 1)
 
     @property
-    def bias(self) -> np.ndarray:
+    def bias(self) -> jnp.ndarray:
         return self._b
 
-    def _build_k_matrix(self, x: np.ndarray) -> np.ndarray:
-        size = x.shape[0]
-        return np.array(
-            [[self._kernel(x[i], x[j]) for j in range(size)] for i in range(size)]
-        )
-
     def _find_alpha(
-        self, K: np.ndarray, x: np.ndarray, y: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
+        self, K: jnp.ndarray, x: jnp.ndarray, y: jnp.ndarray
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
         size = x.shape[0]
+
         alpha = cp.Variable(size)
 
-        big_k = np.outer(y, y) * K
+        big_k = jnp.outer(y, y) * K
         big_k = cp.psd_wrap(big_k)
 
         objective = cp.Minimize((1 / 2) * cp.quad_form(alpha, big_k) - cp.sum(alpha))
         constraints = [cp.sum(cp.multiply(alpha, y)) == 0, alpha >= 0, alpha <= self._c]
         problem = cp.Problem(objective, constraints)
         problem.solve(solver=cp.CLARABEL)  # verbose=True
-        alpha = alpha.value
+        alpha = jnp.array(alpha.value)
 
         # filter the important one
-        support_vectors = np.where((self._c >= alpha) & (alpha > self._threshold))[0]
+        support_vectors = jnp.where((self._c >= alpha) & (alpha > self._threshold))[0]
         return alpha, support_vectors
 
-    def _find_bias(
-        self,
-        alpha: np.ndarray,
-        support_vectors: np.ndarray,
-        y: np.ndarray,
-        K: np.ndarray,
+    @staticmethod
+    @jax.jit
+    def __find_bias(
+        alpha: jnp.ndarray,
+        support_vectors: jnp.ndarray,
+        y: jnp.ndarray,
+        K: jnp.ndarray,
     ):
         K_hat = K[support_vectors][:, support_vectors]
         alpha_hat = alpha[support_vectors]
@@ -125,57 +246,40 @@ class SupportVectorMachine:
 
         res = y_hat - K_hat @ (alpha_hat * y_hat)
 
-        return np.mean(res)
+        return jnp.mean(res)
 
-    def train(self, x: np.ndarray, y: np.ndarray):  # [batch, feature]   [batch, 1]
+    def train(
+        self, x: Float[Array, "batch feature"], y: Float[Array, "batch 1"]
+    ):  # [batch, feature]   [batch, 1]
         # get the a
         K = self._build_k_matrix(x)
         # print(K)
         alpha, support_vector = self._find_alpha(K, x, y)
         # find the best b
-        self._b = self._find_bias(alpha, support_vector, y, K)
+        self._b = SupportVectorMachine.__find_bias(alpha, support_vector, y, K)
 
         alpha, y = alpha.reshape(-1, 1), y.reshape(-1, 1)
 
-        table = np.hstack((alpha, y, x))
+        table = jnp.hstack((alpha, y, x))
 
         self._a_y_x = table[support_vector]
 
         return
 
-    def cal_one_item(
-        self, ay: np.ndarray, x_kernel: np.ndarray, x_item: np.ndarray
-    ) -> np.ndarray:
-        # x [1, feature]
-        # x_kernel [a, feature]
-
-        res = np.sum(ay * self._kernel(x_kernel.T, x_item.reshape(-1, 1))) + self._b
-
-        return res
-
-    def __call__(self, x: np.ndarray, with_sign: bool = False) -> np.ndarray:
+    def __call__(self, x: jnp.ndarray, with_sign: bool = False) -> jnp.ndarray:
         # x [batch, feature]
-        a, y, x_kernel = (
-            self._a_y_x[:, 0].reshape(-1, 1),
-            self._a_y_x[:, 1].reshape(-1, 1),
-            self._a_y_x[:, 2:],
-        )
-
-        result = [
-            self.cal_one_item(a * y, x_kernel=x_kernel, x_item=x_item) for x_item in x
-        ]
-        res = np.hstack(result)
+        res = self._fast_forward_jit(self._a_y_x, x, self._b)
 
         if with_sign:
-            res = np.sign(res)
+            res = jnp.sign(res)
 
         return res
 
-    def acc(self, x: np.ndarray, y: np.ndarray) -> tuple[float, np.ndarray]:
+    def acc(self, x: jnp.ndarray, y: jnp.ndarray) -> tuple[float, jnp.ndarray]:
 
-        y_hat = self.__call__(x, True)
+        y_hat = self(x, True)
 
-        return np.mean(y_hat == y), y_hat
+        return jnp.mean(y_hat == y), y_hat
 
     @property
     def info(self):

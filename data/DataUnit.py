@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-
+import jax
 import numpy as np
 
 
@@ -77,3 +77,9 @@ class DataUnit:
             label_to_index=self.label_to_index,
             index_to_label=self.index_to_label,
         )
+
+    def to_devices(self, device):
+        self.train_x = jax.device_put(self.train_x, device)
+        self.train_y = jax.device_put(self.train_y, device)
+        self.test_x = jax.device_put(self.test_x, device)
+        self.test_y = jax.device_put(self.test_y, device)
