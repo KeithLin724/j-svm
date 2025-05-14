@@ -5,8 +5,6 @@ import cvxpy as cp
 from jaxtyping import Array, Float, Int
 from typing import Callable
 
-# from cvxpylayers.torch import CvxpyLayer
-
 
 def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
@@ -31,6 +29,8 @@ def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
         return kernel_value
 
+    _ = rbf_jit(jnp.zeros((1,)), jnp.zeros((1,))).block_until_ready()  # warm up
+
     return run
 
 
@@ -42,6 +42,8 @@ def poly(p: int) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
         return (x_1.T @ x_2) ** p
 
+    _ = run(jnp.zeros((1,)), jnp.zeros((1,))).block_until_ready()  # warm up
+
     return run
 
 
@@ -52,6 +54,8 @@ def linear() -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
         # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
 
         return x_1.T @ x_2
+
+    _ = run(jnp.zeros((1,)), jnp.zeros((1,))).block_until_ready()  # warm up
 
     return run
 
@@ -92,7 +96,25 @@ class SupportVectorMachine:
         self._b: float = None
         self._kernel = Kernel.get_kernel(kernel_name, kernel_arg)
         self._kernel_info = {"name": kernel_name, "arg": kernel_arg}
+
         return
+
+    @staticmethod
+    def warm_up():
+        ## jit warm up
+        _ = SupportVectorMachine.__cal_one_item_jit(
+            jnp.zeros((1,)), jnp.zeros((1,)), 0
+        ).block_until_ready()
+
+        key = jax.random.PRNGKey(0)
+        alpha = jax.random.uniform(key, (5,))
+        support_vectors = jnp.array([0, 2, 4])
+        y = jax.random.choice(key, jnp.array([-1.0, 1.0]), (5,))
+        K = jax.random.normal(key, (5, 5))
+
+        _ = SupportVectorMachine.__find_bias(
+            alpha, support_vectors, y, K
+        ).block_until_ready()
 
     @property
     def alpha(self) -> jnp.ndarray:
@@ -133,7 +155,7 @@ class SupportVectorMachine:
 
     @staticmethod
     @jax.jit
-    def _find_bias(
+    def __find_bias(
         alpha: jnp.ndarray,
         support_vectors: jnp.ndarray,
         y: jnp.ndarray,
@@ -155,7 +177,7 @@ class SupportVectorMachine:
         # print(K)
         alpha, support_vector = self._find_alpha(K, x, y)
         # find the best b
-        self._b = SupportVectorMachine._find_bias(alpha, support_vector, y, K)
+        self._b = SupportVectorMachine.__find_bias(alpha, support_vector, y, K)
 
         alpha, y = alpha.reshape(-1, 1), y.reshape(-1, 1)
 
@@ -165,19 +187,19 @@ class SupportVectorMachine:
 
         return
 
+    @staticmethod
+    @jax.jit
+    def __cal_one_item_jit(ay: jnp.ndarray, pre_x_kernel: jnp.ndarray, b: float):
+        return jnp.sum(ay * pre_x_kernel) + b
+
     def cal_one_item(
         self, ay: jnp.ndarray, x_kernel: jnp.ndarray, x_item: jnp.ndarray
     ) -> jnp.ndarray:
         # x [1, feature]
         # x_kernel [a, feature]
-
-        @jax.jit
-        def cal_one_item_jit(ay: jnp.ndarray, pre_x_kernel: jnp.ndarray, b: float):
-            return jnp.sum(ay * pre_x_kernel) + b
-
         pre_x_kernel = self._kernel(x_kernel.T, x_item.reshape(-1, 1))
 
-        return cal_one_item_jit(ay, pre_x_kernel, self._b)
+        return SupportVectorMachine.__cal_one_item_jit(ay, pre_x_kernel, self._b)
 
     def __call__(self, x: jnp.ndarray, with_sign: bool = False) -> jnp.ndarray:
         # x [batch, feature]
