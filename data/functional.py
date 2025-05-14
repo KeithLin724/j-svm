@@ -11,6 +11,7 @@ def build_train_test_dataset(
     negative_class: Any,
     label: str = "Label",
     for_two_fold: bool = False,
+    return_data_unit: bool = False,
 ):
     # have before and after -> for two-fold
     positive_data = df_in[df_in[label] == positive_class]
@@ -20,20 +21,45 @@ def build_train_test_dataset(
 
     after = [positive_data[train_size:], negative_data[train_size:]]
 
+    before, after = pd.concat(before), pd.concat(after)
+
     if for_two_fold:
         res = {
             "before": {
-                "train": pd.concat(before),
-                "test": pd.concat(after),
+                "train": before,
+                "test": after,
             },
             "after": {
-                "train": pd.concat(after),
-                "test": pd.concat(before),
+                "train": after,
+                "test": before,
             },
         }
 
-    # else
-    return {
-        "train": pd.concat(before),
-        "test": pd.concat(after),
-    }
+        if return_data_unit:
+            res["before"] = DataUnit.build_from_dict(
+                data_dict=res["before"],
+                positive_class=positive_class,
+                negative_class=negative_class,
+                label=label,
+            )
+            res["after"] = DataUnit.build_from_dict(
+                data_dict=res["after"],
+                positive_class=positive_class,
+                negative_class=negative_class,
+                label=label,
+            )
+
+    else:
+        res = {
+            "train": before,
+            "test": after,
+        }
+        if return_data_unit:
+            res = DataUnit.build_from_dict(
+                data_dict=res,
+                positive_class=positive_class,
+                negative_class=negative_class,
+                label=label,
+            )
+
+    return res
