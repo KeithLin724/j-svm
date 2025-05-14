@@ -124,12 +124,14 @@ class SupportVectorMachine:
     def bias(self) -> jnp.ndarray:
         return self._b
 
-    # TODO: use vmap to speed up
     def _build_k_matrix(self, x: jnp.ndarray) -> jnp.ndarray:
-        size = x.shape[0]
-        return jnp.array(
-            [[self._kernel(x[i], x[j]) for j in range(size)] for i in range(size)]
-        )
+        # x shape: [N, D]
+        kernel = self._kernel  # 取出 kernel function
+
+        # 先對 x 的每一列做 vmap，然後再對每一列的每一個元素做 vmap
+        # K[i, j] = kernel(x[i], x[j])
+        k_matrix = jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(xi, xj))(x))(x)
+        return k_matrix
 
     def _find_alpha(
         self, K: jnp.ndarray, x: jnp.ndarray, y: jnp.ndarray
@@ -209,9 +211,9 @@ class SupportVectorMachine:
             self._a_y_x[:, 2:],
         )
 
-        result = [
-            self.cal_one_item(a * y, x_kernel=x_kernel, x_item=x_item) for x_item in x
-        ]
+        result = jax.vmap(
+            lambda x_item: self.cal_one_item(a * y, x_kernel=x_kernel, x_item=x_item)
+        )(x)
         res = jnp.hstack(result)
 
         if with_sign:
