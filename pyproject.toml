@@ -7,6 +7,9 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
+numpy = "^2.2.5"
+jax = "^0.6.0"
+cvxpy = "^1.6.5"
 
 
 [build-system]
