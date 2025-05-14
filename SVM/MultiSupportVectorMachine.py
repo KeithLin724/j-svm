@@ -7,7 +7,7 @@ import pandas as pd
 from .SupportVectorMachine import SupportVectorMachine
 
 
-@dataclass
+@dataclass(slots=True)
 class SvmModelModule:
     pair: tuple[str, str]
     model: SupportVectorMachine
@@ -125,6 +125,7 @@ class MultiSupportVectorMachine:
         self._class_names = class_names
 
         class_combination = list(combinations(class_names, 2))
+        # print(f"Class combinations: {class_combination}")
 
         # build model
         self._models = {
