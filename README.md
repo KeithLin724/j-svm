@@ -6,7 +6,7 @@
 
 - [x] Complete Simple SVM
 - [x] Complete Simple Multi SVM
-- [ ] Complete J-SVM
+- [x] Complete J-SVM
 - [ ] Complete J-MultiSVM
 - [ ] Add parallel feature
 
