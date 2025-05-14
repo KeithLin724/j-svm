@@ -22,7 +22,7 @@ poetry install
 
 ## Reference
 
-Jax : [here](https://github.com/jax-ml/jax)
+Jax : [here](https://github.com/jax-ml/jax),[video](https://www.youtube.com/watch?v=_0D5lXDjNpw)
 
 JaxTyping : [here](https://github.com/patrick-kidger/jaxtyping)
 
