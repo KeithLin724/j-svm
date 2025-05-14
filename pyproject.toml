@@ -14,6 +14,7 @@ pandas = "^2.2.3"
 black = "^25.1.0"
 ipykernel = "^6.29.5"
 ipywidgets = "^8.1.7"
+matplotlib = "^3.10.3"
 
 
 [build-system]
