@@ -17,18 +17,21 @@ model = MultiSupportVectorMachine(
 )
 
 
-# %%pre-process data
-train_data, test_data = (
-    dataset[: IrisDataset.TRAIN_DATA_SIZE],
-    dataset[IrisDataset.TRAIN_DATA_SIZE :],
-)
+# # %%pre-process data
+# train_data, test_data = (
+#     dataset[: IrisDataset.TRAIN_DATA_SIZE],
+#     dataset[IrisDataset.TRAIN_DATA_SIZE :],
+# )
 
+
+# %% build data set
+dataset = model.build_dataset(dataset, IrisDataset.TRAIN_DATA_SIZE)
 
 # %% Train model
-each_model_training_acc = model.train(train_data)
+each_model_training_acc = model.train(dataset["before"]["train"])
 
 # test
-acc, predict = model.acc(test_data)
+acc, predict = model.acc(dataset["before"]["test"])
 
 
 # %%
