@@ -18,6 +18,8 @@ class SvmModelModule:
     label_to_index_np: np.vectorize = field(repr=False)
     index_to_label_np: np.vectorize = field(repr=False)
 
+    label: str = field(default="Label", repr=False)
+
     @classmethod
     def build(
         cls,
@@ -26,6 +28,7 @@ class SvmModelModule:
         kernel_name: str,
         kernel_arg: dict,
         threshold: float,
+        label: str = "Label",
     ):
         positive_class, negative_class = pair
         model = SupportVectorMachine(
@@ -48,12 +51,13 @@ class SvmModelModule:
             negative_class,
             label_to_index_np,
             index_to_label_np,
+            label=label,
         )
 
     def build_train_test_dataset(self, df_in: pd.DataFrame, train_size: int):
         # have before and after -> for two-fold
-        positive_data = df_in[df_in["Label"] == self.positive_class]
-        negative_data = df_in[df_in["Label"] == self.negative_class]
+        positive_data = df_in[df_in[self.label] == self.positive_class]
+        negative_data = df_in[df_in[self.label] == self.negative_class]
 
         before = [positive_data[:train_size], negative_data[:train_size]]
         after = [positive_data[train_size:], negative_data[train_size:]]
@@ -72,7 +76,10 @@ class SvmModelModule:
     def build_for_model_input(
         self, df_in: pd.DataFrame
     ) -> tuple[np.ndarray, np.ndarray]:
-        in_x, in_y = df_in.drop(columns=["Label"]).to_numpy(), df_in["Label"].to_numpy()
+        in_x, in_y = (
+            df_in.drop(columns=[self.label]).to_numpy(),
+            df_in[self.label].to_numpy(),
+        )
 
         in_y = self.label_to_index_np(in_y)
         return in_x, in_y
@@ -109,6 +116,7 @@ class MultiSupportVectorMachine:
         kernel_name: str = "rbf",
         kernel_arg: dict = dict(),
         threshold: float = 1e-20,
+        label: str = "Label",
     ):
         self._C = C
         self._kernel_name = kernel_name
@@ -126,6 +134,7 @@ class MultiSupportVectorMachine:
                 kernel_name=self._kernel_name,
                 kernel_arg=self._kernel_arg,
                 threshold=self._threshold,
+                label=label,
             )
             for pair in class_combination
         }
@@ -157,7 +166,7 @@ class MultiSupportVectorMachine:
         return res
 
     def __call__(self, x: np.ndarray):
-        pass
+        return self.predict(x)
 
     def acc(self, df_in: pd.DataFrame) -> tuple[float, np.ndarray]:
         x, y = df_in.drop(columns=["Label"]).to_numpy(), df_in["Label"].to_numpy()
