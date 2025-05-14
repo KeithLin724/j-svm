@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-import pandas as pd
+
 import numpy as np
 
 
@@ -37,8 +37,11 @@ class DataUnit:
         label_to_index = {positive_class: 1, negative_class: -1}
         index_to_label = {1: positive_class, -1: negative_class}
 
-        train_y = label_to_index(train_y)
-        test_y = label_to_index(test_y)
+        label_to_index_np = np.vectorize(label_to_index.get)
+        index_to_label_np = np.vectorize(index_to_label.get)
+
+        train_y = label_to_index_np(train_y)
+        test_y = label_to_index_np(test_y)
         return DataUnit(
             train_x=train_x,
             train_y=train_y,
@@ -46,6 +49,6 @@ class DataUnit:
             test_y=test_y,
             positive_class=positive_class,
             negative_class=negative_class,
-            label_to_index=label_to_index,
-            index_to_label=index_to_label,
+            label_to_index=label_to_index_np,
+            index_to_label=index_to_label_np,
         )
