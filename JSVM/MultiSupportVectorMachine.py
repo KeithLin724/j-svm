@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import pandas as pd
 
 from .SupportVectorMachine import SupportVectorMachine
+from concurrent.futures import ThreadPoolExecutor
 
 
 @dataclass(slots=True)
@@ -146,13 +147,31 @@ class MultiSupportVectorMachine:
     def __repr__(self):
         return f"class name: {self._class_names}, C: {self._C}, kernel: {self._kernel_name} ({self._kernel_arg})"
 
+    # def train(self, data_in: dict[tuple[str, str], pd.DataFrame]) -> dict:
+    #     acc_dict = dict()
+
+    #     for pair, training_data in data_in.items():
+    #         self._models[pair].train(training_data)
+
+    #         acc_dict[pair] = self._models[pair].acc(training_data)
+
+    #     return acc_dict
+
     def train(self, data_in: dict[tuple[str, str], pd.DataFrame]) -> dict:
         acc_dict = dict()
 
-        for pair, training_data in data_in.items():
+        def train_and_acc(pair, training_data):
             self._models[pair].train(training_data)
+            return pair, self._models[pair].acc(training_data)
 
-            acc_dict[pair] = self._models[pair].acc(training_data)
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(train_and_acc, pair, training_data)
+                for pair, training_data in data_in.items()
+            ]
+            for future in futures:
+                pair, acc = future.result()
+                acc_dict[pair] = acc
 
         return acc_dict
 
@@ -162,7 +181,10 @@ class MultiSupportVectorMachine:
 
     def predict(self, x: jnp.ndarray) -> jnp.ndarray:
 
-        res = [model.predict(x) for model in self._models.values()]
+        with ThreadPoolExecutor() as executor:
+            res = list(
+                executor.map(lambda model: model.predict(x), self._models.values())
+            )
 
         res_np = np.array(res).T
         res = np.array([self._get_most_freq_by_row(row) for row in res_np])
