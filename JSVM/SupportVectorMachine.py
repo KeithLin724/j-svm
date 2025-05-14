@@ -3,7 +3,9 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int
 from typing import Callable
-from cvxpylayers.torch import CvxpyLayer
+import numpy as np
+
+# from cvxpylayers.torch import CvxpyLayer
 
 
 def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
@@ -95,7 +97,6 @@ class SupportVectorMachine:
     def bias(self) -> jnp.ndarray:
         return self._b
 
-    @jax.jit
     def _build_k_matrix(self, x: jnp.ndarray) -> jnp.ndarray:
         size = x.shape[0]
         return jnp.array(
@@ -106,6 +107,9 @@ class SupportVectorMachine:
         self, K: jnp.ndarray, x: jnp.ndarray, y: jnp.ndarray
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
         size = x.shape[0]
+
+        K, x, y = np.asarray(K), np.asarray(x), np.asarray(y)
+
         alpha = cp.Variable(size)
 
         big_k = jnp.outer(y, y) * K
@@ -115,14 +119,15 @@ class SupportVectorMachine:
         constraints = [cp.sum(cp.multiply(alpha, y)) == 0, alpha >= 0, alpha <= self._c]
         problem = cp.Problem(objective, constraints)
         problem.solve(solver=cp.CLARABEL)  # verbose=True
-        alpha = alpha.value
+        alpha = jnp.array(alpha.value)
 
         # filter the important one
         support_vectors = jnp.where((self._c >= alpha) & (alpha > self._threshold))[0]
         return alpha, support_vectors
 
+    @staticmethod
+    @jax.jit
     def _find_bias(
-        self,
         alpha: jnp.ndarray,
         support_vectors: jnp.ndarray,
         y: jnp.ndarray,
@@ -142,7 +147,7 @@ class SupportVectorMachine:
         # print(K)
         alpha, support_vector = self._find_alpha(K, x, y)
         # find the best b
-        self._b = self._find_bias(alpha, support_vector, y, K)
+        self._b = SupportVectorMachine._find_bias(alpha, support_vector, y, K)
 
         alpha, y = alpha.reshape(-1, 1), y.reshape(-1, 1)
 
@@ -158,9 +163,13 @@ class SupportVectorMachine:
         # x [1, feature]
         # x_kernel [a, feature]
 
-        res = jnp.sum(ay * self._kernel(x_kernel.T, x_item.reshape(-1, 1))) + self._b
+        @jax.jit
+        def cal_one_item_jit(ay: jnp.ndarray, pre_x_kernel: jnp.ndarray, b: float):
+            return jnp.sum(ay * pre_x_kernel) + b
 
-        return res
+        pre_x_kernel = self._kernel(x_kernel.T, x_item.reshape(-1, 1))
+
+        return cal_one_item_jit(ay, pre_x_kernel, self._b)
 
     def __call__(self, x: jnp.ndarray, with_sign: bool = False) -> jnp.ndarray:
         # x [batch, feature]
