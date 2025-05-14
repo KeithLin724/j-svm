@@ -7,7 +7,6 @@
 # %% load libraries
 from JSVM import SupportVectorMachine
 from data import IrisDataset, build_train_test_dataset, DataUnit
-import jax
 
 # %% sample dataset
 dataset = IrisDataset.load_iris_file(with_name=True)
