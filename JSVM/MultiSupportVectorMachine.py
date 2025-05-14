@@ -1,6 +1,7 @@
 from itertools import combinations
 from dataclasses import dataclass, field
 
+import numpy as np
 import jax.numpy as jnp
 import pandas as pd
 
@@ -15,8 +16,8 @@ class SvmModelModule:
     negative_class: str
 
     # for mapping
-    label_to_index_np: jnp.vectorize = field(repr=False)
-    index_to_label_np: jnp.vectorize = field(repr=False)
+    label_to_index_np: np.vectorize = field(repr=False)
+    index_to_label_np: np.vectorize = field(repr=False)
 
     label: str = field(default="Label", repr=False)
 
@@ -41,8 +42,8 @@ class SvmModelModule:
         label_to_index = {positive_class: 1, negative_class: -1}
         index_to_label = {1: positive_class, 0: "idk", -1: negative_class}
 
-        label_to_index_np = jnp.vectorize(label_to_index.get)
-        index_to_label_np = jnp.vectorize(index_to_label.get)
+        label_to_index_np = np.vectorize(label_to_index.get)
+        index_to_label_np = np.vectorize(index_to_label.get)
 
         return cls(
             pair,
@@ -156,15 +157,15 @@ class MultiSupportVectorMachine:
         return acc_dict
 
     def _get_most_freq_by_row(self, row: jnp.ndarray):
-        unique, counts = jnp.unique(row, return_counts=True)
-        return unique[jnp.argmax(counts)]
+        unique, counts = np.unique(row, return_counts=True)
+        return unique[np.argmax(counts)]
 
     def predict(self, x: jnp.ndarray) -> jnp.ndarray:
 
         res = [model.predict(x) for model in self._models.values()]
 
-        res_np = jnp.array(res).T
-        res = jnp.array([self._get_most_freq_by_row(row) for row in res_np])
+        res_np = np.array(res).T
+        res = np.array([self._get_most_freq_by_row(row) for row in res_np])
         return res
 
     def __call__(self, x: jnp.ndarray):
