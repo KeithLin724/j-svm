@@ -52,3 +52,28 @@ class DataUnit:
             label_to_index=label_to_index_np,
             index_to_label=index_to_label_np,
         )
+
+    def __or__(self, other):
+        if not isinstance(other, DataUnit):
+            return NotImplemented
+
+        assert (
+            self.positive_class == other.positive_class
+            and self.negative_class == other.negative_class
+        ), "DataUnit must have the same positive and negative classes to be merged."
+
+        train_x = np.concatenate([self.train_x, other.train_x], axis=0)
+        train_y = np.concatenate([self.train_y, other.train_y], axis=0)
+        test_x = np.concatenate([self.test_x, other.test_x], axis=0)
+        test_y = np.concatenate([self.test_y, other.test_y], axis=0)
+
+        return DataUnit(
+            train_x=train_x,
+            train_y=train_y,
+            test_x=test_x,
+            test_y=test_y,
+            positive_class=self.positive_class,
+            negative_class=self.negative_class,
+            label_to_index=self.label_to_index,
+            index_to_label=self.index_to_label,
+        )
