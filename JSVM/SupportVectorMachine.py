@@ -11,15 +11,20 @@ import numpy as np
 def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
     @jax.jit
-    def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
-        # 检查维度是否匹配
-        assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
-
+    def rbf_jit(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
         # 计算欧氏距离的平方
         distance_squared = jnp.sum((x_1 - x_2) ** 2, axis=0)
 
         # 计算 RBF 核函数值
         kernel_value = jnp.exp(-distance_squared / (2 * sigma**2))
+
+        return kernel_value
+
+    def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
+        # 检查维度是否匹配
+        # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
+
+        kernel_value = rbf_jit(x_1, x_2)
 
         if x_2.ndim != 1 and x_2.shape[1] == 1:
             kernel_value = kernel_value.reshape(-1, 1)
@@ -33,7 +38,7 @@ def poly(p: int) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
     @jax.jit
     def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
-        assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
+        # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
 
         return (x_1.T @ x_2) ** p
 
@@ -44,7 +49,7 @@ def linear() -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
     @jax.jit
     def run(x_1: jnp.ndarray, x_2: jnp.ndarray) -> jnp.ndarray:
-        assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
+        # assert x_1.shape[0] == x_2.shape[0], "输入的两个向量必须有相同的特征数"
 
         return x_1.T @ x_2
 
@@ -97,6 +102,7 @@ class SupportVectorMachine:
     def bias(self) -> jnp.ndarray:
         return self._b
 
+    # TODO: use vmap to speed up
     def _build_k_matrix(self, x: jnp.ndarray) -> jnp.ndarray:
         size = x.shape[0]
         return jnp.array(
@@ -141,7 +147,9 @@ class SupportVectorMachine:
 
         return jnp.mean(res)
 
-    def train(self, x: jnp.ndarray, y: jnp.ndarray):  # [batch, feature]   [batch, 1]
+    def train(
+        self, x: Float[Array, "batch feature"], y: Float[Array, "batch 1"]
+    ):  # [batch, feature]   [batch, 1]
         # get the a
         K = self._build_k_matrix(x)
         # print(K)
@@ -191,7 +199,7 @@ class SupportVectorMachine:
 
     def acc(self, x: jnp.ndarray, y: jnp.ndarray) -> tuple[float, jnp.ndarray]:
 
-        y_hat = self.__call__(x, True)
+        y_hat = self(x, True)
 
         return jnp.mean(y_hat == y), y_hat
 
