@@ -1,12 +1,22 @@
+# %%
+# import os
+
+# os.environ["JAX_PLATFORM_NAME"] = "cpu"
+
+
 # %% load libraries
 from JSVM import SupportVectorMachine
 from data import IrisDataset, build_train_test_dataset, DataUnit
+import jax
 
 # %% sample dataset
 dataset = IrisDataset.load_iris_file(with_name=True)
 
 # %% peek dataset
 print(dataset.head())
+
+# %% warm up
+SupportVectorMachine.warm_up()
 
 # %% binary classification
 model = SupportVectorMachine(C=10, kernel_name="rbf", kernel_arg={"sigma": 2})
@@ -46,5 +56,13 @@ output: list[TestResult] = test_run(
 # %% show result
 print(output)
 
-# train model
-# model.train(x=data_unit.train_x, y=data_unit.train_y)
+# %% train model
+model.train(x=data_unit.train_x, y=data_unit.train_y)
+
+# %%
+
+# data_unit.train_x = jax.device_put(data_unit.train_x)
+
+model(data_unit.test_x)
+
+# %%
