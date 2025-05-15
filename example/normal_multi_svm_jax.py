@@ -11,6 +11,8 @@ dataset = IrisDataset.load_iris_file(with_name=True)
 print(dataset.head())
 
 # %% multi-class classification
+MultiSupportVectorMachine.warm_up()
+
 model = MultiSupportVectorMachine(
     class_names=IrisDataset.LABEL,
     C=10,

@@ -1,14 +1,24 @@
 # j-SVM: GPU-Accelerated Parallel SVM using JAX
 
----
+## Platform
+
+![AMD_HIP](https://img.shields.io/badge/HIP-%23000000.svg?style=for-the-badge&logo=amd&logoColor=white&logoSize=auto) ![nVIDIA](https://img.shields.io/badge/cuda-000000.svg?style=for-the-badge&logo=nVIDIA&logoColor=green)
+
+## Tools
+
+![NumPy](https://img.shields.io/badge/numpy-%23013243.svg?style=for-the-badge&logo=numpy&logoColor=white)  ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Poetry](https://img.shields.io/badge/Poetry-%233B82F6.svg?style=for-the-badge&logo=poetry&logoColor=0B3D8D)
+
+## System
+
+![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 
 ## TODO
 
 - [x] Complete Simple SVM
 - [x] Complete Simple Multi SVM
 - [x] Complete J-SVM
-- [ ] Complete J-MultiSVM
-- [ ] test on different dataset
+- [x] Complete J-MultiSVM
+- [ ] Test on different dataset
 - [ ] Add parallel feature
 
 ## Build Env
