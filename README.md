@@ -17,7 +17,7 @@
 - [x] Complete Simple SVM
 - [x] Complete Simple Multi SVM
 - [x] Complete J-SVM
-- [ ] Complete J-MultiSVM
+- [x] Complete J-MultiSVM
 - [ ] Test on different dataset
 - [ ] Add parallel feature
 
