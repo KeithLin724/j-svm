@@ -144,6 +144,11 @@ class MultiSupportVectorMachine:
 
         return
 
+    @staticmethod
+    def warm_up():
+        SupportVectorMachine.warm_up()
+        return
+
     def __repr__(self):
         return f"class name: {self._class_names}, C: {self._C}, kernel: {self._kernel_name} ({self._kernel_arg})"
 
