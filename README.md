@@ -18,6 +18,10 @@
 - [x] Complete Simple Multi SVM
 - [x] Complete J-SVM
 - [x] Complete J-MultiSVM
+- [x] Add Load Save for SVM
+- [ ] Add Load Save for J-SVM
+- [ ] Add Load Save for Multi SVM
+- [ ] Add Load Save for J-MultiSVM
 - [ ] Test on different dataset
 - [ ] Add parallel feature
 
