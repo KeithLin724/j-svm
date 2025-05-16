@@ -44,6 +44,9 @@ class SVMParameter:
         else:
             data["a_y_x"] = None
 
+        if self.b is not None:
+            data["b"] = float(self.b)
+
         with open(parameter_path, "w") as f:
             json.dump(data, f, indent=4)
 

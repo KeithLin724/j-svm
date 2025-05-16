@@ -64,4 +64,12 @@ model.train(x=data_unit.train_x, y=data_unit.train_y)
 
 model(data_unit.test_x)
 
+
+# %% save
+model.save("dummy_model_jax")
+
+# %% load model
+model = SupportVectorMachine.load_from("dummy_model_jax")
+print(model)
+
 # %%

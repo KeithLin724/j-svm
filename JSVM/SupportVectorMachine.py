@@ -1,10 +1,13 @@
 import jax
 import jax.numpy as jnp
 import cvxpy as cp
-from jaxtyping import Array, Float, Int
+from jaxtyping import Array, Float
 from typing import Callable
 from dataclasses import dataclass
 import time
+
+from core import SVMParameter
+from pathlib import Path
 
 
 def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
@@ -189,6 +192,38 @@ class SupportVectorMachine:
         self._fast_forward_jit = self.__kernel_result.fast_forward_jit
 
         return
+
+    def save(self, path: str | Path) -> None:
+
+        parameter = SVMParameter(
+            C=self._c,
+            threshold=self._threshold,
+            kernel_name=self._kernel_info["name"],
+            kernel_arg=self._kernel_info["arg"],
+            a_y_x=self._a_y_x,
+            b=self._b,
+        )
+
+        parameter.save(path)
+
+        return
+
+    @staticmethod
+    def load_from(path: str | Path):
+
+        parameter = SVMParameter.load_from(path)
+
+        model = SupportVectorMachine(
+            C=parameter.C,
+            kernel_name=parameter.kernel_name,
+            kernel_arg=parameter.kernel_arg,
+            threshold=parameter.threshold,
+        )
+
+        model._a_y_x = parameter.a_y_x
+        model._b = parameter.b
+
+        return model
 
     @staticmethod
     def warm_up():
