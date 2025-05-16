@@ -41,6 +41,8 @@ Jax : [here](https://github.com/jax-ml/jax),[video](https://www.youtube.com/watc
 
 JaxTyping : [here](https://github.com/patrick-kidger/jaxtyping)
 
+Jaxopt : [here](https://jaxopt.github.io/stable/index.html)
+
 Cvxpylayer : [here](https://github.com/cvxgrp/cvxpylayers)
 
 awesome-jax : [here](https://github.com/n2cholas/awesome-jax?tab=readme-ov-file)
