@@ -9,6 +9,8 @@ import time
 from core import SVMParameter
 from pathlib import Path
 
+from functools import cache
+
 
 def rbf(sigma: float) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
 
@@ -90,6 +92,69 @@ class Kernel:
         func = Kernel.kernel_dict[name]
 
         return func(**config)
+
+    @cache
+    @staticmethod
+    def fast_build_jit_function(name: str, config: tuple):
+
+        kernel = Kernel.get_kernel(name, dict(config))
+
+        @jax.jit
+        def build_k_matrix(x: Float[Array, "N D"]) -> jnp.ndarray:
+
+            # 先對 x 的每一列做 vmap，然後再對每一列的每一個元素做 vmap
+            # K[i, j] = kernel(x[i], x[j])
+            return jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(xi, xj))(x))(x)
+
+        @jax.jit
+        def cal_one_item(
+            ay: jnp.ndarray, x_kernel: jnp.ndarray, x_item: jnp.ndarray, b: float
+        ):
+            return jnp.sum(ay * kernel(x_kernel.T, x_item.reshape(-1, 1))) + b
+
+        @jax.jit
+        def fast_forward_jit(
+            a_y_x: jnp.ndarray, x: jnp.ndarray, b: float
+        ) -> jnp.ndarray:
+
+            a, y, x_kernel = (
+                a_y_x[:, 0].reshape(-1, 1),
+                a_y_x[:, 1].reshape(-1, 1),
+                a_y_x[:, 2:],
+            )
+
+            process_x = jax.vmap(
+                lambda x_item: cal_one_item(a * y, x_kernel, x_item, b)
+            )
+
+            result = process_x(x)
+            res = jnp.hstack(result)
+
+            return res
+
+        ## warm up
+
+        _ = build_k_matrix(jnp.zeros((1, 1))).block_until_ready()
+
+        _ = cal_one_item(
+            jnp.zeros((1, 1)), jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+        ).block_until_ready()
+
+        _ = fast_forward_jit(
+            jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
+        ).block_until_ready()
+
+        return KernelResult(
+            kernel_function=kernel,
+            fast_forward_jit=fast_forward_jit,
+            build_k_matrix=build_k_matrix,
+        )
+
+    @staticmethod
+    def build_fast_jit_function_v2(name: str, config: dict, with_time: bool = None):
+        # 這裡 config 是一個字典，所以要轉換成 tuple
+
+        return Kernel.fast_build_jit_function(name, tuple(config.items()))
 
     @staticmethod
     def build_fast_jit_function(name: str, config: dict, with_time: bool = False):
@@ -183,7 +248,7 @@ class SupportVectorMachine:
         # self._kernel = Kernel.get_kernel(kernel_name, kernel_arg)
         self._kernel_info = {"name": kernel_name, "arg": kernel_arg}
 
-        self.__kernel_result = Kernel.build_fast_jit_function(
+        self.__kernel_result = Kernel.build_fast_jit_function_v2(
             kernel_name, kernel_arg, with_time=True
         )
 
