@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import cvxpy as cp
 from jaxtyping import Array, Float
 from typing import Callable
@@ -304,6 +305,10 @@ class SupportVectorMachine:
             alpha, support_vectors, y, K
         ).block_until_ready()
 
+        _ = SupportVectorMachine.__train_jit(
+            alpha, support_vectors, y, K
+        ).block_until_ready()
+
     @property
     def alpha(self) -> jnp.ndarray:
         return self._a_y_x[:, 0].reshape(-1, 1)
@@ -319,17 +324,17 @@ class SupportVectorMachine:
 
         alpha = cp.Variable(size)
 
-        big_k = jnp.outer(y, y) * K
+        big_k = np.outer(y, y) * K
         big_k = cp.psd_wrap(big_k)
 
         objective = cp.Minimize((1 / 2) * cp.quad_form(alpha, big_k) - cp.sum(alpha))
         constraints = [cp.sum(cp.multiply(alpha, y)) == 0, alpha >= 0, alpha <= self._c]
         problem = cp.Problem(objective, constraints)
         problem.solve(solver=cp.CLARABEL)  # verbose=True
-        alpha = jnp.array(alpha.value)
+        alpha = alpha.value
 
         # filter the important one
-        support_vectors = jnp.where((self._c >= alpha) & (alpha > self._threshold))[0]
+        support_vectors = np.where((self._c >= alpha) & (alpha > self._threshold))[0]
         return alpha, support_vectors
 
     @staticmethod
@@ -348,21 +353,35 @@ class SupportVectorMachine:
 
         return jnp.mean(res)
 
-    def train(
-        self, x: Float[Array, "batch feature"], y: Float[Array, "batch 1"]
-    ):  # [batch, feature]   [batch, 1]
-        # get the a
-        K = self._build_k_matrix(x)
-        # print(K)
-        alpha, support_vector = self._find_alpha(K, x, y)
-        # find the best b
-        self._b = SupportVectorMachine.__find_bias(alpha, support_vector, y, K)
+    @staticmethod
+    @jax.jit
+    def __train_jit(
+        alpha: jnp.ndarray,
+        support_vector: jnp.ndarray,
+        y: jnp.ndarray,
+        x: jnp.ndarray,
+    ):
 
         alpha, y = alpha.reshape(-1, 1), y.reshape(-1, 1)
 
         table = jnp.hstack((alpha, y, x))
 
-        self._a_y_x = table[support_vector]
+        a_y_x = table[support_vector]
+        return a_y_x
+
+    def train(
+        self, x: Float[Array, "batch feature"], y: Float[Array, "batch 1"]
+    ):  # [batch, feature]   [batch, 1]
+        # get the a
+        K = self._build_k_matrix(x)
+        K = np.asarray(K)
+        # print(K)
+        alpha, support_vector = self._find_alpha(K, x, y)
+        # find the best b
+
+        self._b = SupportVectorMachine.__find_bias(alpha, support_vector, y, K)
+
+        self._a_y_x = SupportVectorMachine.__train_jit(alpha, support_vector, y, x)
 
         return
 
