@@ -9,7 +9,7 @@ import time
 
 from core import SVMParameter
 from pathlib import Path
-
+from jaxopt import OSQP
 from functools import cache
 
 
@@ -341,6 +341,28 @@ class SupportVectorMachine:
         support_vectors = np.where((self._c >= alpha) & (alpha > self._threshold))[0]
 
         return jnp.asarray(alpha), jnp.asarray(support_vectors)
+
+    # @jax.jit
+    # def find_alpha_jit(K: jnp.ndarray, y: jnp.ndarray, C: float, threshold: float):
+    #     n = K.shape[0]
+    #     Q = (y @ y.T) * K
+    #     c = -jnp.ones(n)
+    #     # Equality constraint: y^T alpha = 0
+    #     A = y.reshape(1, -1)
+    #     b = jnp.zeros(1)
+    #     # Bounds: 0 <= alpha <= C
+    #     l = jnp.zeros(n)
+    #     u = jnp.ones(n) * C
+
+    #     # OSQP 只支援不等式約束，將等式拆成兩個不等式
+    #     G = jnp.vstack([A, -A])
+    #     h = jnp.hstack([b, -b])
+
+    #     solver = OSQP()
+    #     sol = solver.run(Q, c, G, h, l, u)
+    #     alpha = sol.params
+    #     support_vectors = jnp.where((C >= alpha) & (alpha > threshold))[0]
+    #     return alpha, support_vectors
 
     @staticmethod
     @jax.jit
