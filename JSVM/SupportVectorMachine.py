@@ -320,6 +320,9 @@ class SupportVectorMachine:
     def _find_alpha(
         self, K: jnp.ndarray, x: jnp.ndarray, y: jnp.ndarray
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
+
+        K, x, y = np.asarray(K), np.asarray(x), np.asarray(y)
+
         size = x.shape[0]
 
         alpha = cp.Variable(size)
@@ -331,11 +334,13 @@ class SupportVectorMachine:
         constraints = [cp.sum(cp.multiply(alpha, y)) == 0, alpha >= 0, alpha <= self._c]
         problem = cp.Problem(objective, constraints)
         problem.solve(solver=cp.CLARABEL)  # verbose=True
+
         alpha = alpha.value
 
         # filter the important one
         support_vectors = np.where((self._c >= alpha) & (alpha > self._threshold))[0]
-        return alpha, support_vectors
+
+        return jnp.asarray(alpha), jnp.asarray(support_vectors)
 
     @staticmethod
     @jax.jit
@@ -373,9 +378,9 @@ class SupportVectorMachine:
         self, x: Float[Array, "batch feature"], y: Float[Array, "batch 1"]
     ):  # [batch, feature]   [batch, 1]
         # get the a
+        x, y = jnp.asarray(x), jnp.asarray(y)
         K = self._build_k_matrix(x)
-        K = np.asarray(K)
-        # print(K)
+
         alpha, support_vector = self._find_alpha(K, x, y)
         # find the best b
 
