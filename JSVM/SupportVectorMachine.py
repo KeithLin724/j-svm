@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
-import numpy as np
+
+# import numpy as np
 import cvxpy as cp
 from jaxtyping import Array, Float
 from typing import Callable
@@ -9,7 +10,9 @@ import time
 
 from core import SVMParameter
 from pathlib import Path
-from jaxopt import OSQP
+
+# https://jaxopt.github.io/stable/quadratic_programming.html
+from jaxopt import BoxOSQP
 from functools import cache
 
 
@@ -309,6 +312,9 @@ class SupportVectorMachine:
             alpha, support_vectors, y, K
         ).block_until_ready()
 
+        _ = SupportVectorMachine.__find_alpha_jit(K, y, 1.0).block_until_ready()
+        return
+
     @property
     def alpha(self) -> jnp.ndarray:
         return self._a_y_x[:, 0].reshape(-1, 1)
@@ -318,51 +324,42 @@ class SupportVectorMachine:
         return self._b
 
     def _find_alpha(
-        self, K: jnp.ndarray, x: jnp.ndarray, y: jnp.ndarray
+        self, K: jnp.ndarray, y: jnp.ndarray
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
 
-        K, x, y = np.asarray(K), np.asarray(x), np.asarray(y)
-
-        size = x.shape[0]
-
-        alpha = cp.Variable(size)
-
-        big_k = np.outer(y, y) * K
-        big_k = cp.psd_wrap(big_k)
-
-        objective = cp.Minimize((1 / 2) * cp.quad_form(alpha, big_k) - cp.sum(alpha))
-        constraints = [cp.sum(cp.multiply(alpha, y)) == 0, alpha >= 0, alpha <= self._c]
-        problem = cp.Problem(objective, constraints)
-        problem.solve(solver=cp.CLARABEL)  # verbose=True
-
-        alpha = alpha.value
+        alpha = SupportVectorMachine.__find_alpha_jit(K, y, self._c)
 
         # filter the important one
-        support_vectors = np.where((self._c >= alpha) & (alpha > self._threshold))[0]
+        support_vectors = jnp.where((self._c >= alpha) & (alpha > self._threshold))[0]
 
-        return jnp.asarray(alpha), jnp.asarray(support_vectors)
+        return alpha, support_vectors
 
-    # @jax.jit
-    # def find_alpha_jit(K: jnp.ndarray, y: jnp.ndarray, C: float, threshold: float):
-    #     n = K.shape[0]
-    #     Q = (y @ y.T) * K
-    #     c = -jnp.ones(n)
-    #     # Equality constraint: y^T alpha = 0
-    #     A = y.reshape(1, -1)
-    #     b = jnp.zeros(1)
-    #     # Bounds: 0 <= alpha <= C
-    #     l = jnp.zeros(n)
-    #     u = jnp.ones(n) * C
+    @staticmethod
+    def __matvec_A(_, beta):
+        return beta, jnp.sum(beta)
 
-    #     # OSQP 只支援不等式約束，將等式拆成兩個不等式
-    #     G = jnp.vstack([A, -A])
-    #     h = jnp.hstack([b, -b])
+    @staticmethod
+    @jax.jit
+    def __find_alpha_jit(
+        K: jnp.ndarray,
+        y: jnp.ndarray,
+        C: float,
+        # threshold: float,
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
+        C, y = jnp.float32(C), y.astype(jnp.float32)
 
-    #     solver = OSQP()
-    #     sol = solver.run(Q, c, G, h, l, u)
-    #     alpha = sol.params
-    #     support_vectors = jnp.where((C >= alpha) & (alpha > threshold))[0]
-    #     return alpha, support_vectors
+        # l, u must have same shape than matvec_A's output.
+        l = -jax.nn.relu(-y * C), 0.0
+        u = jax.nn.relu(y * C), 0.0
+
+        # big_k = jnp.outer(y, y) * K
+        osqp = BoxOSQP(matvec_A=SupportVectorMachine.__matvec_A)
+
+        sol, _ = osqp.run(params_obj=(K, -y), params_eq=None, params_ineq=(l, u))
+
+        alpha = sol.primal[0]
+
+        return alpha
 
     @staticmethod
     @jax.jit
@@ -403,7 +400,7 @@ class SupportVectorMachine:
         x, y = jnp.asarray(x), jnp.asarray(y)
         K = self._build_k_matrix(x)
 
-        alpha, support_vector = self._find_alpha(K, x, y)
+        alpha, support_vector = self._find_alpha(K, y)
         # find the best b
 
         self._b = SupportVectorMachine.__find_bias(alpha, support_vector, y, K)
