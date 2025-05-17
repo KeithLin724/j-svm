@@ -428,20 +428,45 @@ class SupportVectorMachine:
 
     def _approximate_k_matrix(
         self,
-        x: jnp.ndarray,
+        y: jnp.ndarray,
         m: int = None,
         key: Array = jax.random.PRNGKey(0),
     ):
-
-        N = x.shape[0]
+        N = y.shape[0]
         if m is None:
-            m = int(N / 10)
+            m = int(N / 3)
 
-        # 1. 從資料中隨機抽取 m 個錨點
-        idx = jax.random.choice(key, N, shape=(m,), replace=False)
-        landmarks = x[idx]
+        # y = y.reshape(-1, 1)
 
-        return self._approximate_k_matrix_jit(x, landmarks)
+        def __approximate_k_matrix(x: jnp.ndarray):
+            # N = x.shape[0]
+
+            data = jnp.concatenate((x, y.reshape(-1, 1)), axis=1)
+
+            m_mid = m // 2
+
+            data_pos, data_neg = data[y == 1], data[y == -1]
+
+            data_pos_x, data_neg_x = data_pos[:, :-1], data_neg[:, :-1]
+
+            idx_pos = jax.random.choice(
+                key, data_pos_x.shape[0], shape=(m_mid,), replace=False
+            )
+            idx_neg = jax.random.choice(
+                key, data_neg_x.shape[0], shape=(m_mid,), replace=False
+            )
+
+            landmarks = jnp.concatenate(
+                (data_pos_x[idx_pos], data_neg_x[idx_neg]), axis=0
+            )
+
+            # # 1. 從資料中隨機抽取 m 個錨點
+            # idx = jax.random.choice(key, N, shape=(m,), replace=False)
+            # landmarks = x[idx]
+
+            return self._approximate_k_matrix_jit(x, landmarks)
+
+        return __approximate_k_matrix
 
     def _find_alpha(
         self, K: jnp.ndarray, y: jnp.ndarray
@@ -569,29 +594,24 @@ class SupportVectorMachine:
         a_y_x = table[support_vector]
         return a_y_x
 
-    def __process_train_function(self):
-        if self._use_approx:
-            return (
-                self._approximate_k_matrix,
-                self.__find_bias_approx,
-            )
-        return (
-            self._build_k_matrix,
-            self.__find_bias,
-        )
-
     def train(
         self, x: Float[Array, "batch feature"], y: Float[Array, "batch 1"]
     ):  # [batch, feature]   [batch, 1]
         # get the a
         x, y = jnp.asarray(x), jnp.asarray(y)
 
-        k_matrix_func, find_bias_func = self.__process_train_function()
+        k_matrix_func = (
+            self._approximate_k_matrix(y) if self._use_approx else self._build_k_matrix
+        )
 
         K = k_matrix_func(x)
 
         alpha, support_vector = self._find_alpha(K, y)
         # find the best b
+
+        find_bias_func = (
+            self.__find_bias_approx if self._use_approx else self.__find_bias
+        )
         self._b = find_bias_func(alpha, support_vector, y, K)
 
         self._a_y_x = SupportVectorMachine.__train_jit(alpha, support_vector, y, x)
