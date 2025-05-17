@@ -21,7 +21,7 @@ print(set(y_adult))
 # %%
 data = build_train_test_dataset(
     df_in=(X_adult, y_adult),
-    train_size=0.8,
+    train_size=0.1,
     positive_class=">50K",
     negative_class="<=50K",
     # label="income",
@@ -37,8 +37,10 @@ print(data.test_y.shape)
 
 
 # %%
-# SupportVectorMachine.warm_up()
-model = SupportVectorMachine(C=10, kernel_name="rbf", kernel_arg={"sigma": 2})
+SupportVectorMachine.warm_up()
+model = SupportVectorMachine(
+    C=10, kernel_name="rbf", kernel_arg={"sigma": 0.5}, use_approx=True
+)
 
 # %%
 model.train(data.train_x, data.train_y)
