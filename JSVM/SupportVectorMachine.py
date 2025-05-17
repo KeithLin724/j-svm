@@ -358,6 +358,8 @@ class SupportVectorMachine:
         self._use_approx = approx_scale > 0
         self._approx_scale = approx_scale
 
+        self.inner_warm_up()
+
         return
 
     def save(self, path: str | Path) -> None:
@@ -419,34 +421,18 @@ class SupportVectorMachine:
         ).block_until_ready()
         return
 
-    @property
-    def alpha(self) -> jnp.ndarray:
-        return self._a_y_x[:, 0].reshape(-1, 1)
+    def inner_warm_up(self):
+        key: Array = jax.random.PRNGKey(0)
+        self._approx_scale = self._approx_scale if self._use_approx else 1
 
-    @property
-    def bias(self) -> jnp.ndarray:
-        return self._b
-
-    def _approximate_k_matrix(
-        self,
-        y: jnp.ndarray,
-        m: int = None,
-        key: Array = jax.random.PRNGKey(0),
-    ):
-        N = y.shape[0]
-        if m is None:
-            m = int(N / self._approx_scale)
-
-        def __approximate_k_matrix(x: jnp.ndarray):
+        @jax.jit
+        def __approximate_k_matrix(
+            x: jnp.ndarray, data_pos_x: jnp.ndarray, data_neg_x: jnp.ndarray
+        ):
+            N = x.shape[0]
             # # 1. 從資料中隨機抽取 m 個錨點
-            data = jnp.concatenate((x, y.reshape(-1, 1)), axis=1)
 
-            m_mid = m // 2
-
-            data_pos, data_neg = data[y == 1], data[y == -1]
-
-            data_pos_x, data_neg_x = data_pos[:, :-1], data_neg[:, :-1]
-
+            m_mid = int(N / self._approx_scale) // 2
             idx_pos = jax.random.choice(
                 key, data_pos_x.shape[0], shape=(m_mid,), replace=False
             )
@@ -460,7 +446,34 @@ class SupportVectorMachine:
 
             return self._approximate_k_matrix_jit(x, landmarks)
 
-        return __approximate_k_matrix
+        _ = __approximate_k_matrix(
+            jnp.zeros((1, 1)), jnp.zeros((1, 1)), jnp.zeros((1, 1))
+        ).block_until_ready()
+
+        self._approximate_k_matrix_partial = __approximate_k_matrix
+
+        return
+
+    def _approximate_k_matrix(self, y: jnp.ndarray):
+
+        def run(x: jnp.ndarray):
+            data = jnp.concatenate((x, y.reshape(-1, 1)), axis=1)
+
+            data_pos, data_neg = data[y == 1], data[y == -1]
+
+            data_pos_x, data_neg_x = data_pos[:, :-1], data_neg[:, :-1]
+
+            return self._approximate_k_matrix_partial(x, data_pos_x, data_neg_x)
+
+        return run
+
+    @property
+    def alpha(self) -> jnp.ndarray:
+        return self._a_y_x[:, 0].reshape(-1, 1)
+
+    @property
+    def bias(self) -> jnp.ndarray:
+        return self._b
 
     def _find_alpha(
         self, K: jnp.ndarray, y: jnp.ndarray
