@@ -45,6 +45,9 @@ def build_train_test_dataset(
     if isinstance(train_size, float) and 0 < train_size < 1:
         train_size_pos = int(len(positive_data) * train_size)
         train_size_neg = int(len(negative_data) * train_size)
+    else:
+        train_size_pos = int(train_size)
+        train_size_neg = int(train_size)
 
     before = [positive_data[:train_size_pos], negative_data[:train_size_neg]]
 
