@@ -1,5 +1,6 @@
 import pandas as pd
 from typing import Any
+from sklearn.preprocessing import StandardScaler
 
 from .DataUnit import DataUnit
 
@@ -29,6 +30,7 @@ def build_train_test_dataset(
     for_two_fold: bool = False,
     return_data_unit: bool = False,
     to_one_hot: bool = True,
+    scaler: StandardScaler = None,
 ):
     if to_one_hot:
         if isinstance(df_in, tuple):
@@ -37,6 +39,13 @@ def build_train_test_dataset(
             df_in = df_in_0
         else:
             df_in = process_data_to_one_hot(df_in)
+
+    if scaler is not None:
+        df_in_x = df_in.drop(columns=[label])
+        df_in_y = df_in[label]
+        df_in_x_process = scaler.fit_transform(df_in_x)
+        df_in = pd.DataFrame(df_in_x_process, columns=df_in_x.columns)
+        df_in[label] = df_in_y
 
     # have before and after -> for two-fold
     positive_data = df_in[df_in[label] == positive_class]
