@@ -20,6 +20,7 @@ cvxpylayers = "^0.1.9"
 joblib = "^1.5.0"
 jaxopt = "^0.8.5"
 rich = "^14.0.0"
+scikit-learn = "^1.6.1"
 
 
 [build-system]
