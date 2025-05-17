@@ -75,6 +75,7 @@ class KernelResult:
     kernel_function: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
     fast_forward_jit: Callable
     build_k_matrix: Callable[[jnp.ndarray], jnp.ndarray]
+    approximate_k_matrix: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
 
 class Kernel:
@@ -136,6 +137,44 @@ class Kernel:
 
             return res
 
+        @jax.jit
+        def approximate_k_matrix(X: jnp.ndarray, landmarks: jnp.ndarray) -> jnp.ndarray:
+            """
+            使用 Nystroem 近似法，從完整 RBF kernel 中抽樣 m 個錨點，
+            產生較小維度的近似特徵。
+
+            參數：
+            X      : shape [N, D] 的輸入資料
+            m      : 錨點數
+            kernel : 兩個樣本間的 RBF 核函式 kernel(xi, xj)
+            key    : PRNGKey 以抽樣錨點
+            回傳：
+            phi    : shape [N, m] 的近似特徵矩陣
+            """
+            # N = X.shape[0]
+            # # 1. 從資料中隨機抽取 m 個錨點
+            # idx = jax.random.choice(key, N, shape=(m,), replace=False)
+            # landmarks = X[idx]
+
+            # 2. 計算 X 與 landmarks 的 Kernel  # shape (N, m)
+            pairwise = jax.vmap(
+                lambda row: jax.vmap(lambda l: kernel(row, l))(landmarks)
+            )(X)
+
+            # 3. 計算 landmarks 與 landmarks 之間的 Kernel # shape (m, m)
+            K_mm = jax.vmap(lambda l1: jax.vmap(lambda l2: kernel(l1, l2))(landmarks))(
+                landmarks
+            )
+
+            # 4. SVD (或其他分解) 來近似
+            U, S, Vt = jnp.linalg.svd(K_mm, full_matrices=False)
+            # 避免 0 除，用一點微小值
+            S_sqrt_inv = jnp.diag(1.0 / jnp.sqrt(S + 1e-8))
+
+            # 5. 投影 => 產生近似特徵 phi
+            phi = pairwise @ U @ S_sqrt_inv  # shape (N, m)
+            return phi
+
         ## warm up
 
         _ = build_k_matrix(jnp.zeros((1, 1))).block_until_ready()
@@ -148,10 +187,15 @@ class Kernel:
             jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
         ).block_until_ready()
 
+        _ = approximate_k_matrix(
+            jnp.zeros((1, 1)), jnp.zeros((1, 1))
+        ).block_until_ready()
+
         return KernelResult(
             kernel_function=kernel,
             fast_forward_jit=fast_forward_jit,
             build_k_matrix=build_k_matrix,
+            approximate_k_matrix=approximate_k_matrix,
         )
 
     @staticmethod
@@ -197,6 +241,44 @@ class Kernel:
 
             return res
 
+        @jax.jit
+        def approximate_k_matrix(X: jnp.ndarray, landmarks: jnp.ndarray) -> jnp.ndarray:
+            """
+            使用 Nystroem 近似法，從完整 RBF kernel 中抽樣 m 個錨點，
+            產生較小維度的近似特徵。
+
+            參數：
+            X      : shape [N, D] 的輸入資料
+            m      : 錨點數
+            kernel : 兩個樣本間的 RBF 核函式 kernel(xi, xj)
+            key    : PRNGKey 以抽樣錨點
+            回傳：
+            phi    : shape [N, m] 的近似特徵矩陣
+            """
+            # N = X.shape[0]
+            # # 1. 從資料中隨機抽取 m 個錨點
+            # idx = jax.random.choice(key, N, shape=(m,), replace=False)
+            # landmarks = X[idx]
+
+            # 2. 計算 X 與 landmarks 的 Kernel  # shape (N, m)
+            pairwise = jax.vmap(
+                lambda row: jax.vmap(lambda l: kernel(row, l))(landmarks)
+            )(X)
+
+            # 3. 計算 landmarks 與 landmarks 之間的 Kernel # shape (m, m)
+            K_mm = jax.vmap(lambda l1: jax.vmap(lambda l2: kernel(l1, l2))(landmarks))(
+                landmarks
+            )
+
+            # 4. SVD (或其他分解) 來近似
+            U, S, Vt = jnp.linalg.svd(K_mm, full_matrices=False)
+            # 避免 0 除，用一點微小值
+            S_sqrt_inv = jnp.diag(1.0 / jnp.sqrt(S + 1e-8))
+
+            # 5. 投影 => 產生近似特徵 phi
+            phi = pairwise @ U @ S_sqrt_inv  # shape (N, m)
+            return phi
+
         ## warm up
         if with_time:
 
@@ -218,6 +300,12 @@ class Kernel:
             ).block_until_ready()
             end = time.time()
             print(f"fast_forward_jit time: {end - start:.4f} s")
+
+            start = time.time()
+            _ = approximate_k_matrix(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1))
+            ).block_until_ready()
+            end = time.time()
         else:
             _ = build_k_matrix(jnp.zeros((1, 1))).block_until_ready()
 
@@ -229,10 +317,15 @@ class Kernel:
                 jnp.zeros((1, 1)), jnp.zeros((1, 1)), 0
             ).block_until_ready()
 
+            _ = approximate_k_matrix(
+                jnp.zeros((1, 1)), jnp.zeros((1, 1))
+            ).block_until_ready()
+
         return KernelResult(
             kernel_function=kernel,
             fast_forward_jit=fast_forward_jit,
             build_k_matrix=build_k_matrix,
+            approximate_k_matrix=approximate_k_matrix,
         )
 
 
@@ -243,6 +336,7 @@ class SupportVectorMachine:
         kernel_name: str = "linear",
         kernel_arg: dict = dict(),
         threshold: float = 1e-20,
+        use_approx: bool = False,
     ):
         self._c = C
         self._threshold = threshold
@@ -259,6 +353,9 @@ class SupportVectorMachine:
         self._build_k_matrix = self.__kernel_result.build_k_matrix
         self._kernel = self.__kernel_result.kernel_function
         self._fast_forward_jit = self.__kernel_result.fast_forward_jit
+        self._approximate_k_matrix_jit = self.__kernel_result.approximate_k_matrix
+
+        self._use_approx = use_approx
 
         return
 
@@ -313,6 +410,12 @@ class SupportVectorMachine:
         ).block_until_ready()
 
         _ = SupportVectorMachine.__find_alpha_jit(K, y, 1.0).block_until_ready()
+
+        _ = SupportVectorMachine.__find_alpha_approx_jit(K, y, 1.0).block_until_ready()
+
+        _ = SupportVectorMachine.__find_bias_approx(
+            alpha, support_vectors, y, K
+        ).block_until_ready()
         return
 
     @property
@@ -323,12 +426,36 @@ class SupportVectorMachine:
     def bias(self) -> jnp.ndarray:
         return self._b
 
+    def _approximate_k_matrix(
+        self,
+        x: jnp.ndarray,
+        m: int = None,
+        key: Array = jax.random.PRNGKey(0),
+    ):
+
+        N = x.shape[0]
+        if m is None:
+            m = int(N / 10)
+
+        # 1. 從資料中隨機抽取 m 個錨點
+        idx = jax.random.choice(key, N, shape=(m,), replace=False)
+        landmarks = x[idx]
+
+        return self._approximate_k_matrix_jit(x, landmarks)
+
     def _find_alpha(
         self, K: jnp.ndarray, y: jnp.ndarray
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
 
-        alpha = SupportVectorMachine.__find_alpha_jit(K, y, self._c)
-
+        process_func = (
+            SupportVectorMachine.__find_alpha_jit
+            if not self._use_approx
+            else SupportVectorMachine.__find_alpha_approx_jit
+        )
+        # print("here")
+        alpha = process_func(K, y, self._c)
+        # print("ok")
+        # print(alpha.block_until_ready())
         # filter the important one
         support_vectors = jnp.where((self._c >= alpha) & (alpha > self._threshold))[0]
 
@@ -337,6 +464,10 @@ class SupportVectorMachine:
     @staticmethod
     def __matvec_A(_, beta):
         return beta, jnp.sum(beta)
+
+    @staticmethod
+    def __matvec_Q(X, beta):
+        return X @ (X.T @ beta)
 
     @staticmethod
     @jax.jit
@@ -363,6 +494,32 @@ class SupportVectorMachine:
 
     @staticmethod
     @jax.jit
+    def __find_alpha_approx_jit(
+        K_approx: jnp.ndarray,
+        y: jnp.ndarray,
+        C: float,
+        # threshold: float,
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
+        C, y = jnp.float32(C), y.astype(jnp.float32)
+
+        # l, u must have same shape than matvec_A's output.
+        l = -jax.nn.relu(-y * C), 0.0
+        u = jax.nn.relu(y * C), 0.0
+
+        # big_k = jnp.outer(y, y) * K
+        osqp = BoxOSQP(
+            matvec_A=SupportVectorMachine.__matvec_A,
+            matvec_Q=SupportVectorMachine.__matvec_Q,
+        )
+
+        sol, _ = osqp.run(params_obj=(K_approx, -y), params_eq=None, params_ineq=(l, u))
+
+        alpha = sol.primal[0]
+
+        return alpha
+
+    @staticmethod
+    @jax.jit
     def __find_bias(
         alpha: jnp.ndarray,
         support_vectors: jnp.ndarray,
@@ -370,6 +527,25 @@ class SupportVectorMachine:
         K: jnp.ndarray,
     ):
         K_hat = K[support_vectors][:, support_vectors]
+        alpha_hat = alpha[support_vectors]
+        y_hat = y[support_vectors]
+
+        res = y_hat - K_hat @ (alpha_hat * y_hat)
+
+        return jnp.mean(res)
+
+    @staticmethod
+    @jax.jit
+    def __find_bias_approx(
+        alpha: jnp.ndarray,
+        support_vectors: jnp.ndarray,
+        y: jnp.ndarray,
+        K_approx: jnp.ndarray,
+    ):
+        phi = K_approx[support_vectors]  # shape [M, m]
+
+        K_hat = phi @ phi.T  # shape [M, M]
+
         alpha_hat = alpha[support_vectors]
         y_hat = y[support_vectors]
 
@@ -393,17 +569,30 @@ class SupportVectorMachine:
         a_y_x = table[support_vector]
         return a_y_x
 
+    def __process_train_function(self):
+        if self._use_approx:
+            return (
+                self._approximate_k_matrix,
+                self.__find_bias_approx,
+            )
+        return (
+            self._build_k_matrix,
+            self.__find_bias,
+        )
+
     def train(
         self, x: Float[Array, "batch feature"], y: Float[Array, "batch 1"]
     ):  # [batch, feature]   [batch, 1]
         # get the a
         x, y = jnp.asarray(x), jnp.asarray(y)
-        K = self._build_k_matrix(x)
+
+        k_matrix_func, find_bias_func = self.__process_train_function()
+
+        K = k_matrix_func(x)
 
         alpha, support_vector = self._find_alpha(K, y)
         # find the best b
-
-        self._b = SupportVectorMachine.__find_bias(alpha, support_vector, y, K)
+        self._b = find_bias_func(alpha, support_vector, y, K)
 
         self._a_y_x = SupportVectorMachine.__train_jit(alpha, support_vector, y, x)
 
