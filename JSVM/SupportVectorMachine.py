@@ -336,7 +336,7 @@ class SupportVectorMachine:
         kernel_name: str = "linear",
         kernel_arg: dict = dict(),
         threshold: float = 1e-20,
-        use_approx: bool = False,
+        approx_scale: int = 0,
     ):
         self._c = C
         self._threshold = threshold
@@ -355,7 +355,8 @@ class SupportVectorMachine:
         self._fast_forward_jit = self.__kernel_result.fast_forward_jit
         self._approximate_k_matrix_jit = self.__kernel_result.approximate_k_matrix
 
-        self._use_approx = use_approx
+        self._use_approx = approx_scale > 0
+        self._approx_scale = approx_scale
 
         return
 
@@ -434,13 +435,10 @@ class SupportVectorMachine:
     ):
         N = y.shape[0]
         if m is None:
-            m = int(N / 3)
-
-        # y = y.reshape(-1, 1)
+            m = int(N / self._approx_scale)
 
         def __approximate_k_matrix(x: jnp.ndarray):
-            # N = x.shape[0]
-
+            # # 1. 從資料中隨機抽取 m 個錨點
             data = jnp.concatenate((x, y.reshape(-1, 1)), axis=1)
 
             m_mid = m // 2
@@ -459,10 +457,6 @@ class SupportVectorMachine:
             landmarks = jnp.concatenate(
                 (data_pos_x[idx_pos], data_neg_x[idx_neg]), axis=0
             )
-
-            # # 1. 從資料中隨機抽取 m 個錨點
-            # idx = jax.random.choice(key, N, shape=(m,), replace=False)
-            # landmarks = x[idx]
 
             return self._approximate_k_matrix_jit(x, landmarks)
 
