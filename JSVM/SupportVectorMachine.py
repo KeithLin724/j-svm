@@ -409,6 +409,20 @@ class SupportVectorMachine:
 
     @staticmethod
     def warm_up():
+        """
+        Performs JIT warm-up for key SVM internal methods to ensure faster execution during actual usage.
+
+        This function initializes random test data and calls several JIT-compiled static methods of the
+        SupportVectorMachine class with dummy inputs. The purpose is to trigger JAX's compilation step
+        ahead of time, reducing latency for subsequent real calls.
+
+        Methods warmed up:
+            - __find_bias
+            - __train_jit
+            - __find_alpha_jit
+            - __find_alpha_approx_jit
+            - __find_bias_approx
+        """
         ## jit warm up
 
         key = jax.random.PRNGKey(0)
@@ -617,6 +631,22 @@ class SupportVectorMachine:
     def train(
         self, x: Float[Array, "batch feature"], y: Float[Array, "batch 1"]
     ):  # [batch, feature]   [batch, 1]
+        """
+        Trains the Support Vector Machine (SVM) model using the provided input features and labels.
+
+        Args:
+            x (Float[Array, "batch feature"]): Input feature matrix of shape [batch, feature].
+            y (Float[Array, "batch 1"]): Target labels of shape [batch, 1].
+
+        Returns:
+            None
+
+        Notes:
+            - Selects the kernel matrix computation method based on the approximation flag.
+            - Computes the kernel matrix and finds the optimal alpha values and support vectors.
+            - Determines the bias term using the appropriate method.
+            - Prepares the model for prediction by storing the necessary parameters.
+        """
         # get the a
         x, y = jnp.asarray(x), jnp.asarray(y)
 
@@ -648,6 +678,18 @@ class SupportVectorMachine:
         return res
 
     def acc(self, x: jnp.ndarray, y: jnp.ndarray) -> tuple[float, jnp.ndarray]:
+        """
+        Calculates the accuracy of the model's predictions on the given input data.
+
+        Args:
+            x (jnp.ndarray): Input features.
+            y (jnp.ndarray): True labels corresponding to the input features.
+
+        Returns:
+            tuple[float, jnp.ndarray]: A tuple containing:
+                - The accuracy as a float (mean of correct predictions).
+                - The predicted labels as a jnp.ndarray.
+        """
 
         y_hat = self(x, True)
 
@@ -655,6 +697,16 @@ class SupportVectorMachine:
 
     @property
     def info(self):
+        """
+        Returns a dictionary containing information about the support vector machine.
+
+        Returns:
+            dict: A dictionary with the following keys:
+                - "kernel": Information about the kernel used.
+                - "support vector num": The number of support vectors.
+                - "C": The regularization parameter.
+                - "b": The bias term, formatted as a string with 4 decimal places.
+        """
         return {
             "kernel": self._kernel_info,
             "support vector num": self._a_y_x.shape[0],

@@ -174,6 +174,21 @@ class SupportVectorMachine:
         return np.mean(res)
 
     def train(self, x: np.ndarray, y: np.ndarray):  # [batch, feature]   [batch, 1]
+        """
+        Trains the Support Vector Machine (SVM) model using the provided training data.
+
+        Args:
+            x (np.ndarray): Input feature matrix of shape [batch, feature].
+            y (np.ndarray): Target labels of shape [batch, 1].
+
+        Side Effects:
+            Updates the model's internal parameters, including the support vector coefficients (alpha),
+            support vectors, and bias term (self._b). Stores the relevant support vector information
+            in self._a_y_x for later use in prediction.
+
+        Returns:
+            None
+        """
         # get the a
         K = self._build_k_matrix(x)
         # print(K)
@@ -218,6 +233,16 @@ class SupportVectorMachine:
         return res
 
     def acc(self, x: np.ndarray, y: np.ndarray) -> tuple[float, np.ndarray]:
+        """
+        Calculates the accuracy of the model on the given dataset.
+
+        Args:
+            x (np.ndarray): Input features.
+            y (np.ndarray): True labels.
+
+        Returns:
+            tuple[float, np.ndarray]: A tuple containing the accuracy (as a float) and the predicted labels (as a numpy array).
+        """
 
         y_hat = self.__call__(x, True)
 
@@ -225,6 +250,16 @@ class SupportVectorMachine:
 
     @property
     def info(self):
+        """
+        Returns a dictionary containing information about the SVM model.
+
+        Returns:
+            dict: A dictionary with the following keys:
+                - "kernel": Information about the kernel used by the SVM.
+                - "support vector num": The number of support vectors.
+                - "C": The regularization parameter value.
+                - "b": The bias term, formatted to 4 decimal places.
+        """
         return {
             "kernel": self._kernel_info,
             "support vector num": self._a_y_x.shape[0],
