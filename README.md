@@ -1,8 +1,10 @@
 # j-SVM: GPU-Accelerated Parallel SVM using JAX
 
+> ⭐ **If you find this project helpful, please give it a star on GitHub!**
+
 ## Platform
 
-![AMD_HIP](https://img.shields.io/badge/HIP-%23000000.svg?style=for-the-badge&logo=amd&logoColor=white&logoSize=auto) ![nVIDIA](https://img.shields.io/badge/cuda-000000.svg?style=for-the-badge&logo=nVIDIA&logoColor=green)
+![nVIDIA](https://img.shields.io/badge/cuda-000000.svg?style=for-the-badge&logo=nVIDIA&logoColor=green) ![AMD_HIP](https://img.shields.io/badge/HIP-%23000000.svg?style=for-the-badge&logo=amd&logoColor=white&logoSize=auto)
 
 ## Tools
 
@@ -36,6 +38,63 @@ poetry install
 ```
 
 ---
+
+## How to use J-SVM and SVM
+
+### J-SVM
+
+```python
+from JSVM import SupportVectorMachine
+
+# warm up j_SVM
+SupportVectorMachine.warm_up()
+
+# build model 
+model = SupportVectorMachine(C=10, kernel_name="rbf", kernel_arg={"sigma": 2})
+
+# train model 
+model.train(x=data_unit.train_x, y=data_unit.train_y)
+
+# model predict  
+predict = model(data_unit.test_x)
+
+# save model 
+model.save("model_jax")
+
+# load model 
+model = SupportVectorMachine.load_from("model_jax")
+```
+
+> Example code in [`example/normal_svm_jax.py`](./example/normal_svm_jax.py),
+> Run in large dataset ['run_JSVM.py'](./run_JSVM.py)
+
+### SVM
+
+```python
+from SVM import SupportVectorMachine
+
+# build model 
+model = SupportVectorMachine(C=10, kernel_name="rbf", kernel_arg={"sigma": 2})
+
+# train model 
+model.train(x=data_unit.train_x, y=data_unit.train_y)
+
+# model predict  
+predict = model(data_unit.test_x)
+
+# save model 
+model.save("model")
+
+# load model 
+model = SupportVectorMachine.load_from("model")
+```
+
+> Example code in [`example/normal_svm.py`](./example/normal_svm.py),
+> Run in large dataset ['run_SVM.py'](./run_SVM.py)
+
+---
+
+## Math
 
 以 Nystroem 近似 RBF kernel 的主要數學步驟：
 
