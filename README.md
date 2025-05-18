@@ -19,10 +19,12 @@
 - [x] Complete J-SVM
 - [x] Complete J-MultiSVM
 - [x] Add Load Save for SVM
-- [ ] Add Load Save for J-SVM
+- [x] Add Load Save for J-SVM
 - [ ] Add Load Save for Multi SVM
 - [ ] Add Load Save for J-MultiSVM
 - [ ] Test on different dataset
+  - [x] run on iris dataset
+  - [x] run on adult dataset
 - [ ] Add parallel feature
 
 ## Build Env
@@ -34,6 +36,7 @@ poetry install
 ```
 
 ---
+
 以 Nystroem 近似 RBF kernel 的主要數學步驟：
 
 1. 假設原始資料為 X ∈ ℝ^(N×D)，RBF kernel 為  
