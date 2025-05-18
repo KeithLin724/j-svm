@@ -105,3 +105,15 @@ print(output)
 #        0.99272596, 0.99272596, 0.99272596, 0.99272513, 0.99272596,
 #        0.99272596, 0.99271986, 0.99272596, 0.99272596, 0.99272596,
 #        0.99272594, 0.99272595, 0.99272513, 0.99272596, 0.99272594]))]
+
+# %% train model
+model.train(x=data_unit.train_x, y=data_unit.train_y)
+print(model)
+
+# %% save model
+model.save("dummy_model")
+# %% load model
+model = SupportVectorMachine.load_from("dummy_model")
+print(model)
+
+# %%

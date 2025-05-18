@@ -1,6 +1,9 @@
 import cvxpy as cp
 import numpy as np
 from typing import Callable
+from pathlib import Path
+
+from core import SVMParameter
 
 
 def rbf(sigma: float) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
@@ -70,6 +73,17 @@ class SupportVectorMachine:
         kernel_arg: dict = dict(),
         threshold: float = 1e-20,
     ):
+        """
+        Initialize a SupportVectorMachine instance.
+
+        Args:
+            C (int): Regularization parameter. The strength of the regularization is inversely proportional to C.
+            kernel_name (str, optional): Name of the kernel function to use (e.g., "linear", "rbf"). Defaults to "linear".
+            kernel_arg (dict, optional): Dictionary of arguments for the kernel function. Defaults to empty dict.
+            threshold (float, optional): Threshold for numerical stability or convergence. Defaults to 1e-20.
+        Note:
+            This class implements a Support Vector Machine (SVM) with support for different kernels.
+        """
         self._c = C
         self._threshold = threshold
         # like ("ay": ... , "x": ...,)
@@ -78,6 +92,38 @@ class SupportVectorMachine:
         self._kernel = Kernel.get_kernel(kernel_name, kernel_arg)
         self._kernel_info = {"name": kernel_name, "arg": kernel_arg}
         return
+
+    def save(self, path: str | Path) -> None:
+
+        parameter = SVMParameter(
+            C=self._c,
+            threshold=self._threshold,
+            kernel_name=self._kernel_info["name"],
+            kernel_arg=self._kernel_info["arg"],
+            a_y_x=self._a_y_x,
+            b=self._b,
+        )
+
+        parameter.save(path)
+
+        return
+
+    @staticmethod
+    def load_from(path: str | Path):
+
+        parameter = SVMParameter.load_from(path)
+
+        model = SupportVectorMachine(
+            C=parameter.C,
+            kernel_name=parameter.kernel_name,
+            kernel_arg=parameter.kernel_arg,
+            threshold=parameter.threshold,
+        )
+
+        model._a_y_x = parameter.a_y_x
+        model._b = parameter.b
+
+        return model
 
     @property
     def alpha(self) -> np.ndarray:
@@ -128,6 +174,21 @@ class SupportVectorMachine:
         return np.mean(res)
 
     def train(self, x: np.ndarray, y: np.ndarray):  # [batch, feature]   [batch, 1]
+        """
+        Trains the Support Vector Machine (SVM) model using the provided training data.
+
+        Args:
+            x (np.ndarray): Input feature matrix of shape [batch, feature].
+            y (np.ndarray): Target labels of shape [batch, 1].
+
+        Side Effects:
+            Updates the model's internal parameters, including the support vector coefficients (alpha),
+            support vectors, and bias term (self._b). Stores the relevant support vector information
+            in self._a_y_x for later use in prediction.
+
+        Returns:
+            None
+        """
         # get the a
         K = self._build_k_matrix(x)
         # print(K)
@@ -172,6 +233,16 @@ class SupportVectorMachine:
         return res
 
     def acc(self, x: np.ndarray, y: np.ndarray) -> tuple[float, np.ndarray]:
+        """
+        Calculates the accuracy of the model on the given dataset.
+
+        Args:
+            x (np.ndarray): Input features.
+            y (np.ndarray): True labels.
+
+        Returns:
+            tuple[float, np.ndarray]: A tuple containing the accuracy (as a float) and the predicted labels (as a numpy array).
+        """
 
         y_hat = self.__call__(x, True)
 
@@ -179,6 +250,16 @@ class SupportVectorMachine:
 
     @property
     def info(self):
+        """
+        Returns a dictionary containing information about the SVM model.
+
+        Returns:
+            dict: A dictionary with the following keys:
+                - "kernel": Information about the kernel used by the SVM.
+                - "support vector num": The number of support vectors.
+                - "C": The regularization parameter value.
+                - "b": The bias term, formatted to 4 decimal places.
+        """
         return {
             "kernel": self._kernel_info,
             "support vector num": self._a_y_x.shape[0],

@@ -1,25 +1,66 @@
 import pandas as pd
 from typing import Any
+from sklearn.preprocessing import StandardScaler
 
 from .DataUnit import DataUnit
 
 
+def process_data_to_one_hot(df_in: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert categorical columns to one-hot encoding.
+    """
+    # Identify categorical columns
+    categorical_cols = df_in.select_dtypes(include=["object", "category"]).columns
+
+    # Apply one-hot encoding
+    df_out = pd.get_dummies(df_in, columns=categorical_cols, drop_first=True)
+
+    # Ensure all one-hot encoded columns are 0 or 1 (not True/False)
+    df_out = df_out.astype(int)
+
+    return df_out
+
+
 def build_train_test_dataset(
-    df_in: pd.DataFrame,
-    train_size: int,
+    df_in: pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame],
+    train_size: int | float,
     positive_class: Any,
     negative_class: Any,
     label: str = "Label",
     for_two_fold: bool = False,
     return_data_unit: bool = False,
+    to_one_hot: bool = True,
+    scaler: StandardScaler = None,
 ):
+    if to_one_hot:
+        if isinstance(df_in, tuple):
+            df_in_0 = process_data_to_one_hot(df_in[0])
+            df_in_0[label] = df_in[1]
+            df_in = df_in_0
+        else:
+            df_in = process_data_to_one_hot(df_in)
+
+    if scaler is not None:
+        df_in_x = df_in.drop(columns=[label])
+        df_in_y = df_in[label]
+        df_in_x_process = scaler.fit_transform(df_in_x)
+        df_in = pd.DataFrame(df_in_x_process, columns=df_in_x.columns)
+        df_in[label] = df_in_y
+
     # have before and after -> for two-fold
     positive_data = df_in[df_in[label] == positive_class]
     negative_data = df_in[df_in[label] == negative_class]
 
-    before = [positive_data[:train_size], negative_data[:train_size]]
+    if isinstance(train_size, float) and 0 < train_size < 1:
+        train_size_pos = int(len(positive_data) * train_size)
+        train_size_neg = int(len(negative_data) * train_size)
+    else:
+        train_size_pos = int(train_size)
+        train_size_neg = int(train_size)
 
-    after = [positive_data[train_size:], negative_data[train_size:]]
+    before = [positive_data[:train_size_pos], negative_data[:train_size_neg]]
+
+    after = [positive_data[train_size_pos:], negative_data[train_size_neg:]]
 
     before, after = pd.concat(before), pd.concat(after)
 

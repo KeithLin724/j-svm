@@ -118,6 +118,7 @@ def test_run(
     kernel_arg: dict = dict(),
     C_list: list[int] = [1, 10, 100],
     model_type: SVM | j_SVM = SVM,
+    **kwargs,
 ):
 
     if len(kernel_arg) != 0:
@@ -134,7 +135,9 @@ def test_run(
 
     for kernel_arg_item in kernel_arg_list:
         for c in C_list:
-            model = model_type(C=c, kernel_name=kernel_name, kernel_arg=kernel_arg_item)
+            model = model_type(
+                C=c, kernel_name=kernel_name, kernel_arg=kernel_arg_item, **kwargs
+            )
             start = time.time()
             model.train(x=train_x, y=train_y)
             end = time.time()
