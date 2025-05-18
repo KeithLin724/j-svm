@@ -4,7 +4,7 @@
 from sklearn import datasets
 from sklearn.datasets import fetch_openml, fetch_kddcup99
 
-from SVM import SupportVectorMachine
+from JSVM import SupportVectorMachine
 from data import DataUnit, build_train_test_dataset
 from rich import print
 import os
@@ -55,7 +55,7 @@ print(data.test_y.shape)
 
 
 # %%
-# SupportVectorMachine.warm_up()
+SupportVectorMachine.warm_up()
 model = SupportVectorMachine(
     C=10, kernel_name="rbf", kernel_arg={"sigma": 0.5}, approx_scale=1000
 )
