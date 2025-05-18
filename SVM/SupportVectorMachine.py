@@ -73,6 +73,17 @@ class SupportVectorMachine:
         kernel_arg: dict = dict(),
         threshold: float = 1e-20,
     ):
+        """
+        Initialize a SupportVectorMachine instance.
+
+        Args:
+            C (int): Regularization parameter. The strength of the regularization is inversely proportional to C.
+            kernel_name (str, optional): Name of the kernel function to use (e.g., "linear", "rbf"). Defaults to "linear".
+            kernel_arg (dict, optional): Dictionary of arguments for the kernel function. Defaults to empty dict.
+            threshold (float, optional): Threshold for numerical stability or convergence. Defaults to 1e-20.
+        Note:
+            This class implements a Support Vector Machine (SVM) with support for different kernels.
+        """
         self._c = C
         self._threshold = threshold
         # like ("ay": ... , "x": ...,)
