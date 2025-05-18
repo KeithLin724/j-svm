@@ -1,6 +1,8 @@
 # j-SVM: GPU-Accelerated Parallel SVM using JAX
 
 > ⭐ **If you find this project helpful, please give it a star on GitHub!**
+>
+> 📖 **[Project Introduction Slides](https://gamma.app/docs/j-SVM-slide-s253x90o2ruq768)**
 
 ## Platform
 
