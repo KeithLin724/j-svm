@@ -1,6 +1,7 @@
 # %% load libraries
 from SVM import SupportVectorMachine
 from data import IrisDataset, build_train_test_dataset, DataUnit
+from rich import print
 
 # %% sample dataset
 dataset = IrisDataset.load_iris_file(with_name=True)
@@ -16,7 +17,7 @@ POSITIVE_CLASS = "Setosa"
 NEGATIVE_CLASS = "Virginica"
 
 pre_precess_data = build_train_test_dataset(
-    df_in=dataset,
+    df_in=(dataset.drop(columns=["Label"]), dataset["Label"]),
     train_size=IrisDataset.TRAIN_DATA_SIZE,
     positive_class=POSITIVE_CLASS,
     negative_class=NEGATIVE_CLASS,

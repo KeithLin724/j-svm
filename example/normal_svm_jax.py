@@ -26,11 +26,10 @@ POSITIVE_CLASS = "Setosa"
 NEGATIVE_CLASS = "Virginica"
 
 pre_precess_data = build_train_test_dataset(
-    df_in=dataset,
+    df_in=(dataset.drop(columns=["Label"]), dataset["Label"]),
     train_size=IrisDataset.TRAIN_DATA_SIZE,
     positive_class=POSITIVE_CLASS,
     negative_class=NEGATIVE_CLASS,
-    to_one_hot=False,
 )
 
 print(pre_precess_data)

@@ -1,5 +1,7 @@
 # %%
+# import os
 
+# os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 from sklearn import datasets
 from sklearn.datasets import fetch_openml, fetch_kddcup99
@@ -22,7 +24,7 @@ print(Counter(y_adult))
 
 ## %%
 # 只取正負類各 1000 筆資料
-N = 20000
+N = 5000
 pos_mask = y_adult == ">50K"
 neg_mask = y_adult == "<=50K"
 
@@ -38,7 +40,7 @@ y_adult = pd.concat([y_pos, y_neg], axis=0).reset_index(drop=True)
 # %%
 data = build_train_test_dataset(
     df_in=(X_adult, y_adult),
-    train_size=0.1,
+    train_size=0.5,
     positive_class=">50K",
     negative_class="<=50K",
     # label="income",
@@ -57,7 +59,7 @@ print(data.test_y.shape)
 # %%
 SupportVectorMachine.warm_up()
 model = SupportVectorMachine(
-    C=10, kernel_name="rbf", kernel_arg={"sigma": 0.5}, approx_scale=1000
+    C=10, kernel_name="rbf", kernel_arg={"sigma": 0.5}, approx_scale=10
 )
 
 # %%
@@ -66,6 +68,12 @@ model.train(data.train_x, data.train_y)
 end = time.time()
 print(model)
 print(f"Training time: {end - start:.2f} seconds")
+
+# %% forward time
+start = time.time()
+model(data.train_x)
+end = time.time()
+print(f"Forward time: {end - start:.2f} seconds")
 
 # %%
 train_acc, _ = model.acc(data.train_x, data.train_y)
