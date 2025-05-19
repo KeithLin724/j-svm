@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["keithlin"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -22,6 +23,9 @@ jaxopt = "^0.8.5"
 rich = "^14.0.0"
 scikit-learn = "^1.6.1"
 
+
+[tool.poetry.group.dev.dependencies]
+snakeviz = "^2.2.2"
 
 [build-system]
 requires = ["poetry-core"]

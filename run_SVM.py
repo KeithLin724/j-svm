@@ -21,7 +21,7 @@ print(set(y_adult))
 print(Counter(y_adult))
 
 # %%
-# 只取正負類各 1000 筆資料
+# 只取正負類各 5000 筆資料
 N = 5000
 pos_mask = y_adult == ">50K"
 neg_mask = y_adult == "<=50K"
@@ -60,7 +60,9 @@ print(data.test_y.shape)
 
 # %%
 # SupportVectorMachine.warm_up()
-model = SupportVectorMachine(C=10, kernel_name="rbf", kernel_arg={"sigma": 0.5})
+model = SupportVectorMachine(
+    C=10, kernel_name="rbf", kernel_arg={"sigma": 0.5}
+)
 
 # %%
 start = time.time()
