@@ -1,6 +1,6 @@
-## 📋 TODO
+# TODO — j-SVM Roadmap
 
-### ✅ Completed
+## ✅ Completed
 
 - [x] Simple SVM (NumPy)
 - [x] Simple Multi SVM (NumPy)
@@ -11,12 +11,12 @@
 - [x] Run on iris dataset
 - [x] Run on adult dataset
 
-### 🔄 In Progress
+## 🔄 In Progress
 
 - [ ] Load / Save for Multi SVM (NumPy)
 - [ ] Load / Save for J-MultiSVM (JAX)
 
-### 📌 Planned
+## 📌 Planned
 
 - [ ] Test on additional datasets
 - [ ] Parallel training (distributed SMO / data parallelism across GPUs)
