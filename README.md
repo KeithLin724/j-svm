@@ -25,7 +25,7 @@
 ### Tools
 
 ![NumPy](https://img.shields.io/badge/numpy-%23013243.svg?style=for-the-badge&logo=numpy&logoColor=white)
-![Poetry](https://img.shields.io/badge/Poetry-%233B82F6.svg?style=for-the-badge&logo=poetry&logoColor=0B3D8D)
+![uv](https://img.shields.io/badge/uv-DE5FE9?style=for-the-badge&logo=uv&logoColor=white)
 
 ---
 
@@ -79,10 +79,16 @@ j-svm/
 │   ├── sample_jax_code_2.py       # Advanced JAX demos
 │   └── data_set_all_plus.py       # All-dataset benchmark
 │
+├── tests/                        # Unit tests (pytest)
+│   ├── test_svm.py               # Binary SVM — NumPy backend
+│   ├── test_jsvm.py              # Binary SVM — JAX backend
+│   ├── test_multi_svm.py         # Multi-class SVM — NumPy backend
+│   └── test_multi_jsvm.py        # Multi-class SVM — JAX backend
+│
 ├── main.py                        # Entry point
 ├── run_JSVM.py                    # JAX runtime script
 ├── run_SVM.py                     # NumPy runtime script
-└── pyproject.toml                 # Poetry project configuration
+└── pyproject.toml                 # Project configuration (uv)
 ```
 
 ---
@@ -94,9 +100,9 @@ j-svm/
 ```sh
 git clone https://github.com/KeithLin724/j-svm.git
 cd j-svm
-pip install poetry
-poetry install
-poetry run python -c "from JSVM import SupportVectorMachine; SupportVectorMachine.warm_up()"
+pip install uv
+uv sync
+uv run python -c "from JSVM import SupportVectorMachine; SupportVectorMachine.warm_up()"
 ```
 
 ### Minimal Working Example (Iris Dataset)

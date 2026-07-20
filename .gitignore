@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 dummy_*
 .hermes/
+uv.lock
+*.egg-info/
