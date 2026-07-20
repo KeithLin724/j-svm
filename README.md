@@ -174,58 +174,7 @@ model = SupportVectorMachine.load_from("model")
 
 ---
 
-## 📋 TODO
-
-### ✅ Completed
-
-- [x] Simple SVM (NumPy)
-- [x] Simple Multi SVM (NumPy)
-- [x] J-SVM (JAX binary SVM)
-- [x] J-MultiSVM (JAX multi-class)
-- [x] Load / Save for SVM
-- [x] Load / Save for J-SVM
-- [x] Run on iris dataset
-- [x] Run on adult dataset
-
-### 🔄 In Progress
-
-- [ ] Load / Save for Multi SVM (NumPy)
-- [ ] Load / Save for J-MultiSVM (JAX)
-
-### 📌 Planned
-
-- [ ] Test on additional datasets
-- [ ] Parallel training (distributed SMO / data parallelism across GPUs)
-
-> **Note:** Parallel feature is under active design. Contributions and ideas are welcome.
-
----
-
-## 📐 Math: Nyström RBF Kernel Approximation
-
-以 Nyström 近似 RBF kernel 的主要數學步驟：
-
-1. 假設原始資料為 X ∈ ℝ^(N×D)，RBF kernel 為  
-   K(xᵢ, xⱼ) = exp(-‖xᵢ - xⱼ‖² / (2σ²)).  
-   此時完整的 Kernel 矩陣 K ∈ ℝ^(N×N)，元素為 Kᵢⱼ = K(xᵢ, xⱼ)。
-
-2. 取 m (< N) 筆資料當作「錨點（landmarks）」，記為 Z ∈ ℝ^(m×D).  
-   形成下列兩個子矩陣：  
-   • K(X,Z): 形狀為 (N×m)，其元素為 Kᵢⱼ = K(xᵢ, zⱼ)  
-   • K(Z,Z): 形狀為 (m×m)，其元素為 Kᵢⱼ = K(zᵢ, zⱼ)
-
-3. 對 K(Z,Z) 做特徵分解或 SVD，例如：  
-   K(Z,Z) = U S Uᵀ  
-   其中 S 為對角矩陣，U 為對應的特徵向量矩陣。
-
-4. 定義近似特徵映射 Φ(X)：  
-   Φ(X) = K(X,Z) U S^(-1/2)  
-   其中 S^(-1/2) 表示對角元素取 1/√sᵢ。
-
-5. 對每個樣本 xᵢ，Nyström 近似對應的「低維特徵」為 Φ(xᵢ) 第 i 行，形狀約 (1×m)。  
-   若想近似完整 NxN kernel，可用 Φ(X)·Φ(X)ᵀ 來取代原 K，使記憶體需求與運算量減少。
-
-總結來說，Nyström 以「子集合」（landmarks）與矩陣分解，將高維或大規模 Kernel 矩陣轉換成低維度特徵，再以線性運算近似非線性 RBF，達到大幅節省記憶體、提升可擴充性的效果。
+See [TODO.md](./TODO.md) for project roadmap.
 
 ---
 
