@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 import numpy as np
 import jax.numpy as jnp
 import pandas as pd
+import json
+from pathlib import Path
 
 from .SupportVectorMachine import SupportVectorMachine
 
@@ -149,6 +151,64 @@ class MultiSupportVectorMachine:
     def warm_up():
         SupportVectorMachine.warm_up()
         return
+
+
+    def save(self, path: str | Path) -> None:
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+
+        models_data = []
+        for i, (pair, module) in enumerate(self._models.items()):
+            model_path = path / f"binary_{i}"
+            module.model.save(model_path)
+            models_data.append({
+                "pair": list(pair),
+                "positive_class": module.positive_class,
+                "negative_class": module.negative_class,
+                "label": module.label,
+            })
+
+        config = {
+            "C": self._C,
+            "kernel_name": self._kernel_name,
+            "kernel_arg": self._kernel_arg,
+            "threshold": self._threshold,
+            "approx_scale": 0,
+            "models": models_data,
+        }
+
+        with open(path / "config.json", "w") as f:
+            json.dump(config, f, indent=4)
+
+    @classmethod
+    def load_from(cls, path: str | Path):
+        path = Path(path)
+        with open(path / "config.json", "r") as f:
+            config = json.load(f)
+
+        pairs = [tuple(m["pair"]) for m in config["models"]]
+        seen = set()
+        class_names = []
+        for c in [item for pair in pairs for item in pair]:
+            if c not in seen:
+                seen.add(c)
+                class_names.append(c)
+
+        model = cls(
+            class_names=class_names,
+            C=config["C"],
+            kernel_name=config["kernel_name"],
+            kernel_arg=config["kernel_arg"],
+            threshold=config["threshold"],
+            label=config["models"][0]["label"],
+        )
+
+        for i, module_info in enumerate(config["models"]):
+            pair = tuple(module_info["pair"])
+            binary_model = SupportVectorMachine.load_from(path / f"binary_{i}")
+            model._models[pair].model = binary_model
+
+        return model
 
     def __repr__(self):
         return f"class name: {self._class_names}, C: {self._C}, kernel: {self._kernel_name} ({self._kernel_arg})"
